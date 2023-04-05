@@ -1,9 +1,9 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Message;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -11,6 +11,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Scanner;
+
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
 import javafx.collections.FXCollections;
@@ -29,15 +33,24 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.Callback;
-
+import javafx.util.Duration;
+import jdk.nashorn.internal.codegen.CompilerConstants;
 import java.net.URL;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicReference;
+import javafx.application.Platform;
 
 public class Controller implements Initializable {
     Stage stage;
+
+    @FXML
+    Label Location;
+    @FXML
+    Label currentUsername;
+    @FXML
+    Label currentOnlineCnt;
     @FXML
     VBox root;
     @FXML
@@ -46,31 +59,31 @@ public class Controller implements Initializable {
     ListView<String> chatList;
     @FXML
     TextArea inputArea;
+    @FXML
+    TextArea Notification;
 
     HashMap<String, ArrayList<Message>> usersDialogSet = new HashMap<>();
 
     String username;
 
-    String currentChatMate;
+    String currentChatMate = null;
     Socket client;
+    Socket messageClient;
+    Socket onlineCntClient;
     Scanner in;
     PrintWriter out;
+    ObjectInputStream messageIn = null;
+    ObjectOutputStream messageOut = null;
+
+    Thread listenThread;
+
+    Thread onlineCntThread;
 
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        chatList.getSelectionModel().selectedItemProperty().addListener(
-            (observable, oldValue, newValue) -> {
-                if(newValue!=oldValue){
-                    usersDialogSet.get(currentChatMate).clear();
-                    usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
-
-                    chatContentList.getItems().clear();
-                    chatContentList.getItems().setAll(usersDialogSet.get(newValue));
-                    currentChatMate = newValue;
-                }
-            }
-        );
+        initialChatList();
+        Notification.setEditable(false);
 
         Dialog<String> dialog = new TextInputDialog();
         dialog.setTitle("Login");
@@ -79,15 +92,22 @@ public class Controller implements Initializable {
 
         registerSocket();
 
-
         Optional<String> input = dialog.showAndWait();
         if (input.isPresent() && !input.get().isEmpty()) {
-
             /*
                TODO: Check if there is a user with the same name among the currently logged-in users,
                      if so, ask the user to change the username
              */
             username = input.get();
+
+            while(username.equals("OVER")){
+                Alert alert = new Alert(AlertType.ERROR);
+                alert.setTitle("Invalid name");
+                alert.setContentText("User name is not available. Change your name.");
+                alert.showAndWait();
+                input = dialog.showAndWait();
+                username = input.get();
+            }
 
             while(!registerServer()){
                 Alert alert = new Alert(AlertType.ERROR);
@@ -99,19 +119,71 @@ public class Controller implements Initializable {
             }
         } else {
             System.out.println("Invalid username " + input + ", exiting");
-            quitServer();
+            try {
+
+                quitServer();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             Platform.exit();
         }
+
+        currentUsername.setText("Current User: "+username);
+
+        registerMessageServer();
+
+        try {
+            messageIn = new ObjectInputStream(messageClient.getInputStream());
+            messageOut = new ObjectOutputStream(messageClient.getOutputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
 
         chatContentList.setCellFactory(new MessageCellFactory());
         chatContentList.setItems(FXCollections.observableArrayList());
 
-        stage = (Stage)root.getScene().getWindow();
+        //
+
+
+            listenThread = new Thread(new ReceiveListener());
+            listenThread.start();
+            onlineCntThread = new Thread(new OnlineCntListener());
+            onlineCntThread.start();
+
+
+        //Platform.runLater(new ReceiveListener());
+    }
+
+    public void initialChatList(){
+        chatList.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, newValue) -> {
+                    if(currentChatMate!=null) {
+                        usersDialogSet.get(currentChatMate).clear();
+                        usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
+                    }
+                    chatContentList.getItems().clear();
+                    chatContentList.getItems().setAll(usersDialogSet.get(newValue));
+                    currentChatMate = newValue;
+                    Location.setText(currentChatMate);
+                }
+        );
+    }
+
+    public void initialStage(Stage stage){
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
-            public void handle(WindowEvent windowEvent) {
+            public void handle(WindowEvent windowEvent){
                 if(windowEvent.getSource() == stage){
-                    quitServer();
+                    try {
+                        listenThread.interrupt();
+//                        onlineCntThread.interrupt();
+                        quitServer();
+                        System.exit(0);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
                 }
             }
         });
@@ -120,21 +192,37 @@ public class Controller implements Initializable {
 
     public void registerSocket(){
         try {
-            client = new Socket("localhost",135);
+            client = new Socket("localhost",130);
+            messageClient = new Socket("localhost",130);
             in = new Scanner(client.getInputStream());
             out = new PrintWriter(client.getOutputStream());
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void quitServer(){
+    public void quitServer() throws IOException {
         out.println("QUIT");
         out.flush();
         out.close();
         in.close();
+        messageOut.writeObject(new Message(System.currentTimeMillis(),"SYSTEM","SERVER","CLOSE"));
+        messageOut.flush();
+        onlineCntClient.close();
+
     }
 
+    public void registerMessageServer(){
+        try {
+
+            PrintStream messageOut = new PrintStream(messageClient.getOutputStream());
+            messageOut.println("MESSAGEREGISTER "+username);
+            messageOut.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
     public boolean registerServer(){
         out.println("REGISTER  "+username);
         out.flush();
@@ -146,7 +234,6 @@ public class Controller implements Initializable {
         }
         return true;
     }
-
     public ArrayList<String> getServerUsers(){
         out.println("GET");
         out.flush();
@@ -154,36 +241,33 @@ public class Controller implements Initializable {
         ArrayList<String> output = new ArrayList<>(5);
         String nextLine = null;
         while((nextLine = in.next())!=null){
-            if(nextLine != username){
-                output.add(nextLine);
-            }
-            if(nextLine.equals(in.next())){
+            if(nextLine.equals("OVER")){
                 break;
             }
+            if(!nextLine.equals(username)){
+                output.add(nextLine);
+            }
+
         }
         return output;
     }
-
-
-
     @FXML
     public void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();
 
         Stage stage = new Stage();
         ComboBox<String> userSel = new ComboBox<>();
+        userSel.setItems(FXCollections.observableArrayList());
+        userSel.setCellFactory(new UserCellFactory());
 
         // FIXME: get the user list from server, the current user's name should be filtered out
         ArrayList<String>users = getServerUsers();
-
-        userSel.getItems().addAll(users);
+        userSel.getItems().setAll(users);
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
             user.set(userSel.getSelectionModel().getSelectedItem());
             stage.close();
-
-
 
             //Add new a user chatting item to the left pane
             if(usersDialogSet.size()!=0){
@@ -191,7 +275,6 @@ public class Controller implements Initializable {
                 usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
                 chatContentList.getItems().clear();
             }
-
 
             if(chatList.getItems().contains(user.get())){
                 //open the chat with user selected
@@ -202,6 +285,8 @@ public class Controller implements Initializable {
                 chatContentList.getItems().setAll(usersDialogSet.get(user.get()));
             }
             currentChatMate = user.get();
+            Location.setText(currentChatMate);
+
         });
 
         HBox box = new HBox(10);
@@ -228,6 +313,40 @@ public class Controller implements Initializable {
      */
     @FXML
     public void createGroupChat() {
+        Stage stage = new Stage();
+
+        ListView<CheckBox> userSel = new ListView<>();
+        userSel.setItems(FXCollections.observableArrayList());
+        ArrayList<CheckBox> onlineUsers = new ArrayList<>();
+        ArrayList<String> onlineUsersString = getServerUsers();
+        for (String s : onlineUsersString) {
+            onlineUsers.add(new CheckBox(s));
+        }
+        userSel.getItems().addAll(onlineUsers);
+        Button okBtn = new Button("OK");
+        okBtn.setOnAction(e -> {
+            ArrayList<CheckBox> userSet = new ArrayList<>();
+            ArrayList<String> selected = getServerUsers();
+
+
+            userSet.addAll(userSel.getItems());
+
+            for (CheckBox checkBox : userSet) {
+                if(checkBox.isSelected()){
+                    System.out.println(checkBox.getText());
+                }
+            }
+
+        });
+
+        HBox box = new HBox(10);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(20, 20, 20, 20));
+        box.getChildren().addAll(userSel, okBtn);
+        stage.setScene(new Scene(box));
+        stage.showAndWait();
+
+
     }
 
     /**
@@ -239,15 +358,137 @@ public class Controller implements Initializable {
     @FXML
     public void doSendMessage() {
         String text = inputArea.getText();
+        if(currentChatMate==null){
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("No available chat mate");
+            alert.setContentText("Select an available from the left pane to chat with. If there's no content, generate a new chat from menu bar.");
+            alert.showAndWait();
+            return;
+        }
+        if(!getServerUsers().contains(currentChatMate)){
+            Notification.setText("The user " + currentChatMate + " you are chatting with is offline now.");
+
+            Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
+            autoClear.setCycleCount(1);
+            autoClear.play();
+        }
         //send to
-        Message message = new Message(System.currentTimeMillis(),username,"Yuan",text);
+        Message message = new Message(System.currentTimeMillis(),username,currentChatMate,text);
+        usersDialogSet.get(currentChatMate).add(message);
         chatContentList.getItems().add(message);
         inputArea.clear();
 
+        try {
+            messageOut.writeObject(message);
+            messageOut.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
-        // TODO: Trans to server
     }
 
+
+    public class OnlineCntListener implements Runnable{
+        @Override
+        public void run() {
+            try {
+                Thread.sleep(1);
+                onlineCntClient = new Socket("localhost",130);
+                Scanner onlineCntSc = new Scanner(onlineCntClient.getInputStream());
+                PrintStream onlineInital = new PrintStream(onlineCntClient.getOutputStream());
+                onlineInital.println("GRASP");
+                onlineInital.flush();
+                while(onlineCntSc.hasNext()){
+                    String s = onlineCntSc.next();
+                    if(!s.equals("")){
+                        Platform.runLater(()->currentOnlineCnt.setText("Online: "+s));
+                    }
+                }
+                onlineCntClient.close();
+                onlineInital.close();
+                onlineCntSc.close();
+                System.out.println("Closed");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e){
+                try {
+                    System.out.println("close");
+                    onlineCntClient.close();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+
+
+        }
+    }
+    public class ReceiveListener implements Runnable{
+
+        @Override
+        public void run() throws IllegalStateException {
+            try {
+                while(!Thread.currentThread().isInterrupted()){
+                    Thread.sleep(1);
+                    Message receivedMessage = (Message) messageIn.readObject();
+                    System.out.println("get message");
+                    String from = receivedMessage.getSentBy();
+                    Notification.setText("You receive an information from "+from+".");
+
+                    Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
+                    autoClear.setCycleCount(1);
+                    autoClear.play();
+
+                    if(!chatList.getItems().contains(from)){
+                        Platform.runLater(() -> chatList.getItems().add(from));
+                        usersDialogSet.put(from,new ArrayList<Message>());
+                    }
+                    if(currentChatMate!=null){
+                        if(currentChatMate.equals(from)){
+                            Platform.runLater(() -> chatContentList.getItems().add(receivedMessage));
+                        }
+                    }
+                    usersDialogSet.get(from).add(receivedMessage);
+                }
+
+            } catch (EOFException e){
+
+            } catch (IOException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e){
+                try {
+                    messageIn.close();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }finally {
+                try {
+                    messageIn.close();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        }
+    }
+
+    private class UserCellFactory implements Callback<ListView<String>, ListCell<String>>{
+
+        @Override
+        public ListCell<String> call(ListView<String> param) {
+            return new ListCell<String>() {
+                @Override
+                public void updateItem(String msg, boolean empty){
+                    super.updateItem(msg, empty);
+                    if (empty || Objects.isNull(msg)) {
+                        setGraphic(null);
+                        setText(null);
+                        return;
+                    }else{
+                        setText(msg);
+                    }
+                }
+            };
+        }
+    }
     /**
      * You may change the cell factory if you changed the design of {@code Message} model.
      * Hint: you may also define a cell factory for the chats displayed in the left panel, or simply override the toString method.
@@ -258,12 +499,11 @@ public class Controller implements Initializable {
             return new ListCell<Message>() {
 
                 @Override
-                public void updateItem(Message msg, boolean empty) {
+                public void updateItem(Message msg, boolean empty) throws IllegalStateException{
                     super.updateItem(msg, empty);
                     if (empty || Objects.isNull(msg)) {
                         setGraphic(null);
                         setText(null);
-
                         return;
                     }
 

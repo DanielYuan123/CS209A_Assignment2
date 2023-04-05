@@ -19,5 +19,7 @@ public class Main extends Application {
         stage.setScene(new Scene(fxmlLoader.load()));
         stage.setTitle("Chatting Client");
         stage.show();
+        Controller controller = (Controller) fxmlLoader.getController();
+        controller.initialStage(stage);
     }
 }
