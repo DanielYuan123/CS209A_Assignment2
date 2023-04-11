@@ -1,6 +1,7 @@
 package cn.edu.sustech.cs209.chatting.common;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 
 public class Message implements Serializable{
 
@@ -11,6 +12,10 @@ public class Message implements Serializable{
     private String sendTo;
 
     private String data;
+
+    private boolean isGroupMessage = false;
+
+    private ArrayList<String> groupMembers = new ArrayList<>();
 
     public Message(Long timestamp, String sentBy, String sendTo, String data) {
         this.timestamp = timestamp;
@@ -33,5 +38,21 @@ public class Message implements Serializable{
 
     public String getData() {
         return data;
+    }
+
+    public boolean isGroupMessage() {
+        return isGroupMessage;
+    }
+
+    public void setIsGroupMessage(){
+        this.isGroupMessage = true;
+    }
+
+    public void setGroupMembers(ArrayList<String> groupMembers){
+        this.groupMembers = groupMembers;
+    }
+
+    public ArrayList<String> getGroupMembers() {
+        return groupMembers;
     }
 }

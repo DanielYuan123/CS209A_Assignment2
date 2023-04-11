@@ -50,7 +50,7 @@ class handle implements Runnable{
                         while (!clientSocket.isClosed()) {
                             onlineCntIn.println(userSet.userNameSet.size());
                             onlineCntIn.flush();
-                            System.out.println("Working");
+//                            System.out.println("Working");
                             Thread.sleep(20);
                         }
                     }catch (IOException | InterruptedException e) {
@@ -95,6 +95,18 @@ class handle implements Runnable{
 //                            messageInputStream.close();
                             Thread.currentThread().interrupt();
                             return;
+                        }
+                        if(serverMessage.isGroupMessage()){
+                            ArrayList<String> usersSendTo = serverMessage.getGroupMembers();
+                            ObjectOutputStream targetOutput;
+                            for (int i = 0; i < usersSendTo.size(); i++) {
+                                if(!usersSendTo.get(i).equals(userName)){
+                                    targetOutput = userSet.getInput(usersSendTo.get(i));
+                                    targetOutput.writeObject(serverMessage);
+                                    targetOutput.flush();
+                                }
+                            }
+                            continue;
                         }
                         ObjectOutputStream targetOutput;
                         targetOutput = userSet.getInput(to);

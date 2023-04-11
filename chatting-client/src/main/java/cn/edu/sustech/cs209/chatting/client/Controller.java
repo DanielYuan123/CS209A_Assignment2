@@ -4,13 +4,7 @@ import cn.edu.sustech.cs209.chatting.common.Message;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Scanner;
+import java.util.*;
 
 import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 import javafx.animation.KeyFrame;
@@ -36,15 +30,11 @@ import javafx.util.Callback;
 import javafx.util.Duration;
 import jdk.nashorn.internal.codegen.CompilerConstants;
 import java.net.URL;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 
 public class Controller implements Initializable {
     Stage stage;
-
     @FXML
     Label Location;
     @FXML
@@ -63,6 +53,7 @@ public class Controller implements Initializable {
     TextArea Notification;
 
     HashMap<String, ArrayList<Message>> usersDialogSet = new HashMap<>();
+    HashMap<String, ArrayList<String>> userGroupSet = new HashMap<>();
 
     String username;
 
@@ -210,7 +201,6 @@ public class Controller implements Initializable {
         messageOut.writeObject(new Message(System.currentTimeMillis(),"SYSTEM","SERVER","CLOSE"));
         messageOut.flush();
         onlineCntClient.close();
-
     }
 
     public void registerMessageServer(){
@@ -325,17 +315,53 @@ public class Controller implements Initializable {
         userSel.getItems().addAll(onlineUsers);
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
+            stage.close();
             ArrayList<CheckBox> userSet = new ArrayList<>();
-            ArrayList<String> selected = getServerUsers();
-
+            ArrayList<String> selected = new ArrayList<>();
 
             userSet.addAll(userSel.getItems());
 
             for (CheckBox checkBox : userSet) {
                 if(checkBox.isSelected()){
-                    System.out.println(checkBox.getText());
+                    selected.add(checkBox.getText());
                 }
             }
+
+            if(selected.size()==1){
+                Alert alert = new Alert(AlertType.ERROR);
+                alert.setContentText("Please choose at least two user to create a group chat.");
+                alert.showAndWait();
+                return;
+            }
+            selected.add(username);
+            Collections.sort(selected);
+            String groupChatMate = null;
+            if(selected.size() > 3){
+                groupChatMate = String.format("%s, %s, %s...(%d)",selected.get(0),selected.get(1),selected.get(2),selected.size());
+            }else{
+                groupChatMate = String.format("%s, %s, %s(3)",selected.get(0),selected.get(1),selected.get(2));
+            }
+            int duplicated = 1;
+            String finalGroupChatMate = groupChatMate + "";
+            while(userGroupSet.containsKey(groupChatMate)){
+                finalGroupChatMate = String.format("%s[%d]",groupChatMate,duplicated);
+                duplicated++;
+            }
+
+            userGroupSet.put(finalGroupChatMate,selected);
+
+            if(usersDialogSet.size()!=0){
+                usersDialogSet.get(currentChatMate).clear();
+                usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
+                chatContentList.getItems().clear();
+            }
+
+            chatList.getItems().add(finalGroupChatMate);
+            usersDialogSet.put(finalGroupChatMate,new ArrayList<>(5));
+            chatContentList.getItems().setAll(usersDialogSet.get(finalGroupChatMate));
+
+            currentChatMate = finalGroupChatMate;
+            Location.setText(currentChatMate);
 
         });
 
@@ -365,18 +391,38 @@ public class Controller implements Initializable {
             alert.showAndWait();
             return;
         }
-        if(!getServerUsers().contains(currentChatMate)){
-            Notification.setText("The user " + currentChatMate + " you are chatting with is offline now.");
 
-            Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
-            autoClear.setCycleCount(1);
-            autoClear.play();
+        if(userGroupSet.containsKey(currentChatMate)){
+            ArrayList<String> usersSendTo = userGroupSet.get(currentChatMate);
+
+            Message message = new Message(System.currentTimeMillis(),username,currentChatMate,text);
+            message.setIsGroupMessage();
+            message.setGroupMembers(usersSendTo);
+
+            usersDialogSet.get(currentChatMate).add(message);
+            chatContentList.getItems().add(message);
+            inputArea.clear();
+
+            try {
+                messageOut.writeObject(message);
+                messageOut.flush();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return;
         }
         //send to
         Message message = new Message(System.currentTimeMillis(),username,currentChatMate,text);
         usersDialogSet.get(currentChatMate).add(message);
         chatContentList.getItems().add(message);
         inputArea.clear();
+
+        if(!getServerUsers().contains(currentChatMate)){
+            Notification.setText("The user " + currentChatMate + " you are chatting with is offline now.");
+            Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
+            autoClear.setCycleCount(1);
+            autoClear.play();
+        }
 
         try {
             messageOut.writeObject(message);
@@ -432,11 +478,36 @@ public class Controller implements Initializable {
                     Message receivedMessage = (Message) messageIn.readObject();
                     System.out.println("get message");
                     String from = receivedMessage.getSentBy();
-                    Notification.setText("You receive an information from "+from+".");
+                    String to = receivedMessage.getSendTo();
+                    if(receivedMessage.isGroupMessage()){
+                        Notification.setText("You receive a group information from "+to+".");
+                    }else{
+                        Notification.setText("You receive an information from "+from+".");
+                    }
+
+
 
                     Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
                     autoClear.setCycleCount(1);
                     autoClear.play();
+
+                    if(receivedMessage.isGroupMessage()){
+                        if(!chatList.getItems().contains(to)){
+                            Platform.runLater(() -> chatList.getItems().add(to));
+                        }
+                        if(!userGroupSet.containsKey(from)){
+                            userGroupSet.put(to,receivedMessage.getGroupMembers());
+                            usersDialogSet.put(to,new ArrayList<Message>());
+                        }
+                        if(currentChatMate!=null){
+                            if(currentChatMate.equals(to)){
+                                Platform.runLater(() -> chatContentList.getItems().add(receivedMessage));
+                            }
+                        }
+                        usersDialogSet.get(to).add(receivedMessage);
+                        continue;
+                    }
+
 
                     if(!chatList.getItems().contains(from)){
                         Platform.runLater(() -> chatList.getItems().add(from));
