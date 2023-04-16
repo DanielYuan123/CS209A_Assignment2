@@ -3,17 +3,12 @@ package cn.edu.sustech.cs209.chatting.client;
 import cn.edu.sustech.cs209.chatting.common.Message;
 import java.io.*;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.*;
 
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
-import javafx.beans.InvalidationListener;
 import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
-import javafx.collections.ObservableList;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -28,10 +23,8 @@ import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.Callback;
 import javafx.util.Duration;
-import jdk.nashorn.internal.codegen.CompilerConstants;
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicReference;
-import javafx.application.Platform;
 
 public class Controller implements Initializable {
     Stage stage;

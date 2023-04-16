@@ -6,10 +6,12 @@ import javax.swing.plaf.nimbus.State;
 import java.io.*;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+
 public class DBConnector {
-    private static Connection connection;
-    private static Statement statement;
-    private static PreparedStatement preparedStatement;
+    private static Connection connection = null;
+    private static Statement statement = null;
+    private static PreparedStatement preparedStatement = null;
     private static ResultSet resultSet = null;
 
     public DBConnector(){
@@ -24,42 +26,37 @@ public class DBConnector {
         // 连接到 SQLite 数据库
 
     }
-    public static void main(String[] args) {
-        connection = null;
-        try {
-            // 加载 SQLite JDBC 驱动程序
-            Class.forName("org.sqlite.JDBC");
-            // 连接到 SQLite 数据库
-            connection = DriverManager.getConnection("jdbc:sqlite:chatting-server/src/main/resources/db/test.db");
-            System.out.println("Connection established.");
+    public static void main(String[] args) throws SQLException {
+        DBConnector connector = new DBConnector();
+//        connector.registerUser("a","asd");
 
-            ArrayList<Message> testArrayList = new ArrayList<>();
-            testArrayList.add(new Message(System.currentTimeMillis(),"F","a","Hello"));
-            testArrayList.add(new Message(System.currentTimeMillis(),"D","B","hi"));
-
-            storeMessage(testArrayList,"a");
-
-            ArrayList<Message> out = readMessage("a");
-
-            for (Message message : out) {
-                System.out.println("Message from "+message.getSentBy() + " to "+message.getSendTo());
-            }
-
-        } catch (ClassNotFoundException e) {
-            System.err.println("SQLite JDBC driver not found.");
-        } catch (SQLException e) {
-            System.err.println("Error connecting to SQLite database: " + e.getMessage());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            try {
-                if (connection != null) {
-                    connection.close();
-                }
-            } catch (SQLException e) {
-                System.err.println("Error closing connection: " + e.getMessage());
-            }
+        if(!connector.logInUser("a","asd")){
+            System.out.println("User exists.");
+        }else{
+            System.out.println("Register Successfully.");
         }
+//        try {
+//            // 加载 SQLite JDBC 驱动程序
+////            Class.forName("org.sqlite.JDBC");
+////            // 连接到 SQLite 数据库
+////            connection = DriverManager.getConnection("jdbc:sqlite:chatting-server/src/main/resources/db/test.db");
+////            System.out.println("Connection established.");
+//
+//        }
+//        catch (ClassNotFoundException e) {
+//            System.err.println("SQLite JDBC driver not found.");
+//        }
+//        catch (SQLException e) {
+//            System.err.println("Error connecting to SQLite database: " + e.getMessage());
+//        } finally {
+//            try {
+//                if (connection != null) {
+//                    connection.close();
+//                }
+//            } catch (SQLException e) {
+//                System.err.println("Error closing connection: " + e.getMessage());
+//            }
+//        }
     }
 
     public boolean logInUser(String userName, String password) throws SQLException {
@@ -67,9 +64,7 @@ public class DBConnector {
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
         resultSet = preparedStatement.executeQuery();
-        if(resultSet.getFetchSize()==0){
-            return false;
-        }
+        System.out.println(resultSet.getFetchSize());
         if (resultSet.next()) {
             String correctPW = resultSet.getString("password");
             return password.equals(correctPW);
@@ -82,28 +77,48 @@ public class DBConnector {
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
         resultSet = preparedStatement.executeQuery();
-        if(resultSet.getFetchSize() != 0){
+        if(resultSet.next()){
             return false;
         }else{
-            String sql1 = "INSERT INTO user VALUES (?,?,null);";
+            String sql1 = "INSERT INTO user VALUES (?,?,null,null);";
             preparedStatement = connection.prepareStatement(sql1);
             preparedStatement.setString(1,userName);
             preparedStatement.setString(2,password);
-            preparedStatement.executeQuery();
+            preparedStatement.execute();
             return true;
         }
     }
 
-    public static void storeMessage(ArrayList<Message>messages,String userName) throws SQLException, IOException {
-        String sql = "UPDATE user SET chat_history = ? WHERE name = ?;";
-        byte[] objectBytes = serialize(messages);
+    public static void storeDialogAnd(HashMap<String,ArrayList<Message>> messages,HashMap<String, ArrayList<String>> chatGroup, String userName) throws SQLException, IOException {
+        String sql = "UPDATE user SET chat_history = ?,group_chat_set = ? WHERE name = ?;";
+        byte[] messageBytes = null;
+        if(messages!=null){
+            messageBytes = serialize(messages);
+        }
+        byte[] groupChatBytes = null;
+        if(chatGroup!=null){
+            groupChatBytes = serialize(chatGroup);
+        }
+
         preparedStatement = connection.prepareStatement(sql);
-        preparedStatement.setBytes(1,objectBytes);
-        preparedStatement.setString(2,userName);
+        if(messages == null){
+            preparedStatement.setNull(1,Types.BLOB);
+        }else{
+            preparedStatement.setBytes(1,messageBytes);
+        }
+
+        if(chatGroup == null){
+            preparedStatement.setNull(2,Types.BLOB);
+        }else{
+            preparedStatement.setBytes(2,groupChatBytes);
+        }
+
+
+        preparedStatement.setString(3,userName);
         preparedStatement.executeUpdate();
     }
 
-    public static ArrayList<Message> readMessage(String userName) throws SQLException, IOException, ClassNotFoundException {
+    public static HashMap<String,ArrayList<Message>> readDialog(String userName) throws SQLException, IOException, ClassNotFoundException {
         String sql = "SELECT chat_history FROM user WHERE name = ?;";
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
@@ -112,13 +127,37 @@ public class DBConnector {
 
         if (resultSet.next()) {
             byte[] objectBytes = resultSet.getBytes("chat_history");
-            ArrayList<Message> messages = (ArrayList<Message>) deserialize(objectBytes);
-            return messages;
+            if(!resultSet.wasNull()){
+                HashMap<String,ArrayList<Message>> messages = (HashMap<String,ArrayList<Message>>) deserialize(objectBytes);
+                return messages;
+            }else{
+                return null;
+            }
         } else {
             System.out.println("No person found with name 'Alice'.");
             return null;
         }
+    }
 
+    public static HashMap<String,ArrayList<String>> readGroup(String userName) throws SQLException, IOException, ClassNotFoundException {
+        String sql = "SELECT group_chat_set FROM user WHERE name = ?;";
+        preparedStatement = connection.prepareStatement(sql);
+        preparedStatement.setString(1,userName);
+
+        resultSet = preparedStatement.executeQuery();
+
+        if (resultSet.next()) {
+            byte[] objectBytes = resultSet.getBytes("group_chat_set");
+            if(!resultSet.wasNull()){
+                HashMap<String,ArrayList<String>> groups = (HashMap<String,ArrayList<String>>) deserialize(objectBytes);
+                return groups;
+            }else{
+                return null;
+            }
+        } else {
+            System.out.println("No person found with name 'Alice'.");
+            return null;
+        }
     }
 
     public static byte[] serialize(Serializable object) throws IOException {
