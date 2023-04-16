@@ -495,7 +495,7 @@ public class Controller implements Initializable {
                         if(!chatList.getItems().contains(to)){
                             Platform.runLater(() -> chatList.getItems().add(to));
                         }
-                        if(!userGroupSet.containsKey(from)){
+                        if(!userGroupSet.containsKey(to)){
                             userGroupSet.put(to,receivedMessage.getGroupMembers());
                             usersDialogSet.put(to,new ArrayList<Message>());
                         }
