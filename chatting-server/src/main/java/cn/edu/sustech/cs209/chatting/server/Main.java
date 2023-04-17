@@ -14,11 +14,13 @@ import java.util.Scanner;
 
 public class Main {
     static UserSet userSet;
+    static DBConnector connector;
 
     public static void main(String[] args) throws IOException {
         System.out.println("Starting server");
         ServerSocket server = new ServerSocket(130);
         userSet = new UserSet();
+        connector = new DBConnector();
 
         while(true){
             Socket socket = server.accept();

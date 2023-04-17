@@ -1,6 +1,7 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Message;
+
 import java.io.*;
 import java.net.Socket;
 import java.util.*;
@@ -9,16 +10,23 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.Callback;
@@ -59,6 +67,10 @@ public class Controller implements Initializable {
     ObjectInputStream messageIn = null;
     ObjectOutputStream messageOut = null;
 
+    Stage logInStage = null;
+
+    Stage registerStage = null;
+
     Thread listenThread;
 
     Thread onlineCntThread;
@@ -66,51 +78,71 @@ public class Controller implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        initialChatList();
-        Notification.setEditable(false);
-
-        Dialog<String> dialog = new TextInputDialog();
-        dialog.setTitle("Login");
-        dialog.setHeaderText(null);
-        dialog.setContentText("Username:");
 
         registerSocket();
 
-        Optional<String> input = dialog.showAndWait();
-        if (input.isPresent() && !input.get().isEmpty()) {
-            /*
-               TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username
-             */
-            username = input.get();
+        showLogInWindow();
 
-            while(username.equals("OVER")){
-                Alert alert = new Alert(AlertType.ERROR);
-                alert.setTitle("Invalid name");
-                alert.setContentText("User name is not available. Change your name.");
-                alert.showAndWait();
-                input = dialog.showAndWait();
-                username = input.get();
-            }
+        initialChatList();
+        Notification.setEditable(false);
+//        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("login.fxml"));
+//        try {
+//            stage1.setScene(new Scene(fxmlLoader.load()));
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//        stage1.setTitle("Log in");
+//        stage1.show();
+//        logInController logInController = new logInController();
 
-            while(!registerServer()){
-                Alert alert = new Alert(AlertType.ERROR);
-                alert.setTitle("Duplicated name");
-                alert.setContentText("User name is already exist. Change your name.");
-                alert.showAndWait();
-                input = dialog.showAndWait();
-                username = input.get();
-            }
-        } else {
-            System.out.println("Invalid username " + input + ", exiting");
-            try {
 
-                quitServer();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            Platform.exit();
-        }
+
+//        Dialog<String> dialog = new TextInputDialog();
+//        dialog.setTitle("Login");
+//        dialog.setHeaderText(null);
+//        dialog.setContentText("Username:");
+//
+//        registerSocket();
+
+//        Optional<String> input = dialog.showAndWait();
+
+//        if (input.isPresent() && !input.get().isEmpty()) {
+//            /*
+//               TODO: Check if there is a user with the same name among the currently logged-in users,
+//                     if so, ask the user to change the username
+//             */
+//            username = input.get();
+//
+//            while(username.equals("OVER")){
+//                Alert alert = new Alert(AlertType.ERROR);
+//                alert.setTitle("Invalid name");
+//                alert.setContentText("User name is not available. Change your name.");
+//                alert.showAndWait();
+//                input = dialog.showAndWait();
+//                username = input.get();
+//            }
+//
+//            while(!registerServer()){
+//                Alert alert = new Alert(AlertType.ERROR);
+//                alert.setTitle("Duplicated name");
+//                alert.setContentText("User name is already exist. Change your name.");
+//                alert.showAndWait();
+//                input = dialog.showAndWait();
+//                username = input.get();
+//            }
+//        } else {
+//            System.out.println("Invalid username " + input + ", exiting");
+//            try {
+//
+//                quitServer();
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//            Platform.exit();
+//        }
+
+        //successful log in
+
 
         currentUsername.setText("Current User: "+username);
 
@@ -127,19 +159,213 @@ public class Controller implements Initializable {
         chatContentList.setCellFactory(new MessageCellFactory());
         chatContentList.setItems(FXCollections.observableArrayList());
 
-        //
-
-
             listenThread = new Thread(new ReceiveListener());
             listenThread.start();
             onlineCntThread = new Thread(new OnlineCntListener());
             onlineCntThread.start();
-
-
         //Platform.runLater(new ReceiveListener());
     }
 
-    public void initialChatList(){
+    public void showLogInWindow(){
+        logInStage = new Stage();
+        boolean isRegistering = false;
+
+        AnchorPane login = new AnchorPane();
+        login.setPrefSize(600,400);
+        Label userNameLabel = new Label("User name:");
+        Label passwordLabel = new Label("Password:");
+        userNameLabel.setLayoutX(71.0);
+        userNameLabel.setLayoutY(76.0);
+        userNameLabel.setPrefSize(114.0,33.0);
+        userNameLabel.setFont(new Font(19.0));
+
+        passwordLabel.setLayoutX(78.0);
+        passwordLabel.setLayoutY(142.0);
+        passwordLabel.setPrefSize(99.0,33.0);
+        passwordLabel.setFont(new Font(19.0));
+
+        TextField nameTextField = new TextField();
+        TextField passwordTextField = new PasswordField();
+        nameTextField.setLayoutX(196.0);
+        nameTextField.setLayoutY(74.0);
+        nameTextField.setPrefSize(275,38);
+        passwordTextField.setLayoutX(196.0);
+        passwordTextField.setLayoutY(140.0);
+        passwordTextField.setPrefSize(275,38);
+
+        Label tipsLabel = new Label("Don't have an account?");
+        tipsLabel.setPrefSize(140.0,15.0);
+        tipsLabel.setLayoutX(177.0);
+        tipsLabel.setLayoutY(359.0);
+
+        Label reigisterLabel = new Label("Register here.");
+        reigisterLabel.setLayoutX(317.0);
+        reigisterLabel.setLayoutY(359.0);
+        reigisterLabel.setPrefSize(99.0,15.0);
+        reigisterLabel.setTextFill(Color.BLUE);
+        reigisterLabel.setUnderline(true);
+        reigisterLabel.setCursor(Cursor.HAND);
+        registerTextFieldListener td = new registerTextFieldListener(reigisterLabel);
+        reigisterLabel.setOnMouseClicked(td);
+
+        Button logInBtn = new Button("Log in");
+        logInBtn.setLayoutX(243.0);
+        logInBtn.setLayoutY(250.0);
+        logInBtn.setPrefSize(114.0,38.0);
+        logInBtn.setStyle("-fx-background-color: skyblue;");
+        logInBtn.setFont(new Font(19));
+
+        logInBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent event) {
+                //todo:Check whether the password is correct or whether there are user with same name online.
+
+            }
+        });
+
+        login.getChildren().addAll(logInBtn,nameTextField,passwordTextField,tipsLabel,userNameLabel,passwordLabel,reigisterLabel);
+        Scene s = new Scene(login);
+        logInStage.setResizable(false);
+        logInStage.setOnCloseRequest(new EventHandler<WindowEvent>() {
+            @Override
+            public void handle(WindowEvent event) {
+                if(event.getSource()==logInStage){
+                    System.exit(0);
+                }
+            }
+        });
+        logInStage.setScene(s);
+        logInStage.showAndWait();
+    }
+
+    class registerTextFieldListener implements EventHandler<MouseEvent>{
+        boolean isRegistering = false;
+        Label reigisterLabel = null;
+        @Override
+        public void handle(MouseEvent event) {
+            if(isRegistering==false){
+                reigisterLabel.setTextFill(Color.GRAY);
+                isRegistering = true;
+                //new register window
+                showRegisterWindow();
+            }else{
+                registerStage.toFront();
+            }
+        }
+        public registerTextFieldListener(Label reigisterLabel){
+            this.reigisterLabel = reigisterLabel;
+        }
+    }
+
+    private void showRegisterWindow(){
+        registerStage = new Stage();
+        AnchorPane registerPane = new AnchorPane();
+        registerPane.setPrefSize(600.0,400.0);
+
+        Label userNameLabel = new Label("User name :");
+        userNameLabel.setPrefSize(117.0,29.0);
+        userNameLabel.setLayoutX(114.0);
+        userNameLabel.setLayoutY(71.0);
+        userNameLabel.setFont(new Font(19.0));
+
+        Label passwordLabel = new Label("Password :");
+        passwordLabel.setPrefSize(102.0,29.0);
+        passwordLabel.setLayoutX(159.0);
+        passwordLabel.setLayoutY(131.0);
+        passwordLabel.setFont(new Font(19.0));
+
+        Label passwordCheckLabel = new Label("Password * :");
+        passwordCheckLabel.setPrefSize(117.0,29.0);
+        passwordCheckLabel.setLayoutX(144.0);
+        passwordCheckLabel.setLayoutY(192.0);
+        passwordCheckLabel.setFont(new Font(19.0));
+
+        TextField userNameTextField = new TextField("Enter your user name.");
+        TextField passwordTextField = new PasswordField();
+        TextField passwordCheckTextField = new PasswordField();
+
+        passwordTextField.setText("Enter your password.");
+        passwordCheckTextField.setText("Enter your password again.");
+
+        userNameTextField.setPrefSize(170.0,29.0);
+        passwordTextField.setPrefSize(170.0,29.0);
+        passwordCheckTextField.setPrefSize(170.0,29.0);
+
+        userNameTextField.setLayoutX(285.0);
+        userNameTextField.setLayoutY(71.0);
+
+        passwordTextField.setLayoutX(285.0);
+        passwordTextField.setLayoutY(131.0);
+
+        passwordCheckTextField.setLayoutX(285.0);
+        passwordCheckTextField.setLayoutY(192.0);
+
+        Button registerBtn = new Button("Register");
+        Button cancelBtn = new Button("Cancel");
+        registerBtn.setFont(new Font(19.0));
+        registerBtn.setCursor(Cursor.HAND);
+        cancelBtn.setFont(new Font(19.0));
+        cancelBtn.setCursor(Cursor.HAND);
+
+        registerBtn.setLayoutX(159.0);
+        registerBtn.setLayoutY(283.0);
+        registerBtn.setPrefSize(102.0,29.0);
+        registerBtn.setStyle("-fx-background-color: SKYBLUE");
+        registerBtn.setFont(new Font(19.0));
+
+        cancelBtn.setLayoutX(330.0);
+        cancelBtn.setLayoutY(283.0);
+        cancelBtn.setPrefSize(102.0,29.0);
+        cancelBtn.setFont(new Font(19.0));
+
+        cancelBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent event) {
+                registerStage.close();
+            }
+        });
+
+        Label duplicatedPWD = new Label("You enter two different passwords.");
+        duplicatedPWD.setPrefSize(206.0,15.0);
+        duplicatedPWD.setTextFill(Color.RED);
+        duplicatedPWD.setLayoutX(144.0);
+        duplicatedPWD.setLayoutY(232.0);
+        duplicatedPWD.setVisible(false);
+
+        Label duplicatedUser = new Label("The user name you enter has been taken.");
+        duplicatedUser.setPrefSize(206.0,15.0);
+        duplicatedUser.setTextFill(Color.RED);
+        duplicatedUser.setLayoutX(144.0);
+        duplicatedUser.setLayoutY(232.0);
+        duplicatedUser.setVisible(false);
+
+        registerBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent event) {
+                String userName = userNameTextField.getText();
+                String pwd = passwordTextField.getText();
+                if(!pwd.equals(passwordCheckLabel.getText())){
+                    duplicatedPWD.setVisible(true);
+                    return;
+                }
+                //todo:Examine the SQL in server and register a new user account.
+
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Register successfully!");
+                alert.setContentText("You have successfully registered user "+username);
+                alert.showAndWait();
+
+                registerStage.close();
+            }
+        });
+
+        Scene scene = new Scene(registerPane);
+        registerPane.getChildren().addAll(userNameLabel,passwordLabel,passwordCheckLabel,userNameTextField,passwordTextField,passwordCheckTextField,registerBtn,cancelBtn,duplicatedUser,duplicatedPWD);
+        registerStage.setScene(scene);
+        registerStage.showAndWait();
+    }
+
+    private void initialChatList(){
         chatList.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> {
                     if(currentChatMate!=null) {
@@ -154,7 +380,7 @@ public class Controller implements Initializable {
         );
     }
 
-    public void initialStage(Stage stage){
+    void initialStage(Stage stage){
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
             public void handle(WindowEvent windowEvent){
@@ -173,8 +399,7 @@ public class Controller implements Initializable {
         });
     }
 
-
-    public void registerSocket(){
+    private void registerSocket(){
         try {
             client = new Socket("localhost",130);
             messageClient = new Socket("localhost",130);
@@ -186,7 +411,7 @@ public class Controller implements Initializable {
         }
     }
 
-    public void quitServer() throws IOException {
+    private void quitServer() throws IOException {
         out.println("QUIT");
         out.flush();
         out.close();
@@ -196,7 +421,7 @@ public class Controller implements Initializable {
         onlineCntClient.close();
     }
 
-    public void registerMessageServer(){
+    private void registerMessageServer(){
         try {
 
             PrintStream messageOut = new PrintStream(messageClient.getOutputStream());
@@ -206,7 +431,7 @@ public class Controller implements Initializable {
             throw new RuntimeException(e);
         }
     }
-    public boolean registerServer(){
+    private boolean registerServer(){
         out.println("REGISTER  "+username);
         out.flush();
         String response = in.next();
@@ -217,7 +442,7 @@ public class Controller implements Initializable {
         }
         return true;
     }
-    public ArrayList<String> getServerUsers(){
+    private ArrayList<String> getServerUsers(){
         out.println("GET");
         out.flush();
 
@@ -235,7 +460,7 @@ public class Controller implements Initializable {
         return output;
     }
     @FXML
-    public void createPrivateChat() {
+    private void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();
 
         Stage stage = new Stage();
@@ -295,7 +520,7 @@ public class Controller implements Initializable {
      * UserA, UserB (2)
      */
     @FXML
-    public void createGroupChat() {
+    private void createGroupChat() {
         Stage stage = new Stage();
 
         ListView<CheckBox> userSel = new ListView<>();
@@ -375,7 +600,7 @@ public class Controller implements Initializable {
      * After sending the message, you should clear the text input field.
      */
     @FXML
-    public void doSendMessage() {
+    private void doSendMessage() {
         String text = inputArea.getText();
         if(currentChatMate==null){
             Alert alert = new Alert(AlertType.ERROR);
@@ -427,7 +652,7 @@ public class Controller implements Initializable {
     }
 
 
-    public class OnlineCntListener implements Runnable{
+    class OnlineCntListener implements Runnable{
         @Override
         public void run() {
             try {
@@ -461,7 +686,7 @@ public class Controller implements Initializable {
 
         }
     }
-    public class ReceiveListener implements Runnable{
+    class ReceiveListener implements Runnable{
 
         @Override
         public void run() throws IllegalStateException {
@@ -595,4 +820,5 @@ public class Controller implements Initializable {
             };
         }
     }
+
 }

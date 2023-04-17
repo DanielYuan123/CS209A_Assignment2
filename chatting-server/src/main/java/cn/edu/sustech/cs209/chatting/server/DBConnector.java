@@ -24,11 +24,10 @@ public class DBConnector {
             throw new RuntimeException(e);
         }
         // 连接到 SQLite 数据库
-
     }
     public static void main(String[] args) throws SQLException {
         DBConnector connector = new DBConnector();
-//        connector.registerUser("a","asd");
+        connector.registerUser("a","asd");
 
         if(!connector.logInUser("a","asd")){
             System.out.println("User exists.");
@@ -89,7 +88,7 @@ public class DBConnector {
         }
     }
 
-    public static void storeDialogAnd(HashMap<String,ArrayList<Message>> messages,HashMap<String, ArrayList<String>> chatGroup, String userName) throws SQLException, IOException {
+    public void storeDialogAnd(HashMap<String,ArrayList<Message>> messages,HashMap<String, ArrayList<String>> chatGroup, String userName) throws SQLException, IOException {
         String sql = "UPDATE user SET chat_history = ?,group_chat_set = ? WHERE name = ?;";
         byte[] messageBytes = null;
         if(messages!=null){
@@ -118,7 +117,7 @@ public class DBConnector {
         preparedStatement.executeUpdate();
     }
 
-    public static HashMap<String,ArrayList<Message>> readDialog(String userName) throws SQLException, IOException, ClassNotFoundException {
+    public HashMap<String,ArrayList<Message>> readDialog(String userName) throws SQLException, IOException, ClassNotFoundException {
         String sql = "SELECT chat_history FROM user WHERE name = ?;";
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
@@ -139,7 +138,7 @@ public class DBConnector {
         }
     }
 
-    public static HashMap<String,ArrayList<String>> readGroup(String userName) throws SQLException, IOException, ClassNotFoundException {
+    public HashMap<String,ArrayList<String>> readGroup(String userName) throws SQLException, IOException, ClassNotFoundException {
         String sql = "SELECT group_chat_set FROM user WHERE name = ?;";
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
