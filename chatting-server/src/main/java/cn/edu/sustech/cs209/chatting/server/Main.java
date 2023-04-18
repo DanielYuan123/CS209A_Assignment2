@@ -6,10 +6,12 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.sql.SQLException;
 import java.sql.SQLOutput;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class Main {
@@ -18,13 +20,13 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         System.out.println("Starting server");
-        ServerSocket server = new ServerSocket(130);
+        ServerSocket server = new ServerSocket(134);
         userSet = new UserSet();
         connector = new DBConnector();
 
         while(true){
             Socket socket = server.accept();
-            handle han = new handle(userSet,socket);
+            handle han = new handle(userSet,socket,connector);
             Thread thread = new Thread(han);
             thread.start();
         }
@@ -32,14 +34,20 @@ public class Main {
 }
 
 class handle implements Runnable{
+    DBConnector connector;
     UserSet userSet;
     Socket clientSocket;
     Scanner in;
     PrintWriter out;
+
+    ObjectInputStream obIn;
+
+    ObjectOutputStream obOut;
     String userName;
-    public handle(UserSet userset,Socket clientsocket) throws IOException {
+    public handle(UserSet userset,Socket clientsocket,DBConnector connect) throws IOException {
         userSet = userset;
         clientSocket = clientsocket;
+        connector = connect;
         in = new Scanner(clientSocket.getInputStream());
         out = new PrintWriter(clientSocket.getOutputStream());
     }
@@ -55,14 +63,10 @@ class handle implements Runnable{
 //                            System.out.println("Working");
                             Thread.sleep(20);
                         }
-                    }catch (IOException | InterruptedException e) {
-                        if (e instanceof SocketException) { // 判断是否是 SocketException 类型的异常
-                            System.out.println("Client closed, stop sending messages.");
-                        } else {
-                            throw new RuntimeException(e);
-                        }
+                    } catch(SocketException e){
+                    } catch (IOException | InterruptedException e) {
                     }
-                    break;
+                break;
             case "REGISTER":
                 userName = in.next();
                 if(userSet.userNameSet.contains(userName)){
@@ -94,7 +98,6 @@ class handle implements Runnable{
                         }
                         if(serverMessage.getSentBy().equals("SYSTEM")&&serverMessage.getSendTo().equals("SERVER")&&serverMessage.getData().equals("CLOSE")){
                             System.out.println(1);
-//                            messageInputStream.close();
                             Thread.currentThread().interrupt();
                             return;
                         }
@@ -102,7 +105,7 @@ class handle implements Runnable{
                             ArrayList<String> usersSendTo = serverMessage.getGroupMembers();
                             ObjectOutputStream targetOutput;
                             for (int i = 0; i < usersSendTo.size(); i++) {
-                                if(!usersSendTo.get(i).equals(userName)){
+                                if(!usersSendTo.get(i).equals(userName)&&userSet.clientServer.containsKey(usersSendTo.get(i))){
                                     targetOutput = userSet.getInput(usersSendTo.get(i));
                                     targetOutput.writeObject(serverMessage);
                                     targetOutput.flush();
@@ -118,9 +121,6 @@ class handle implements Runnable{
                         throw new RuntimeException(e);
                     }
                 }
-            case "CONNECT":
-
-                break;
             case "GET":
 
                 ArrayList<String> userList = userSet.getUserNameSet();
@@ -136,6 +136,61 @@ class handle implements Runnable{
                 out.flush();
 
                 break;
+//            case "LOGIN":
+//                String name = in.next();
+//                String password = in.next();
+//
+//                try {
+//                    int result = -1;
+//                    if((result = connector.logInUser(name,password)) != 0){
+//                        out.println("Yes");
+//                        out.flush();
+//
+//                        switch(result){
+//                            //none
+//                            case 1:
+//                                out.println(1);
+//                                out.flush();
+//                                System.out.println("sent");
+//                                break;
+//                            //chat
+//                            case 2:
+//                                out.println(2);
+//                                out.flush();
+//
+//                                obOut.writeObject(connector.readDialog(name));
+//                                obOut.flush();
+//                                break;
+//                            //group
+//                            case 3:
+//                                out.println(3);
+//                                out.flush();
+//                                obOut.writeObject(connector.readGroup(name));
+//                                obOut.flush();
+//                                break;
+//                            //both
+//                            case 4:
+//                                out.println(4);
+//                                out.flush();
+//                                obOut.writeObject(connector.readDialog(name));
+//                                obOut.flush();
+//
+//                                obOut.writeObject(connector.readGroup(name));
+//                                obOut.flush();
+//                                break;
+//                        }
+//                    }else{
+//                        out.println("No");
+//                        out.flush();
+//                    }
+//                } catch (SQLException e) {
+//                    throw new RuntimeException(e);
+//                } catch (IOException e) {
+//                    throw new RuntimeException(e);
+//                } catch (ClassNotFoundException e) {
+//                    throw new RuntimeException(e);
+//                }
+//                break;
         }
     }
     @Override
@@ -147,10 +202,20 @@ class handle implements Runnable{
                     userSet.userQuit(userName);
                     break;
                 }
+                if(command.equals("DISCONNECT")){
+                    break;
+                }
                 execute(command);
             }
-        } finally {
+        } catch (NoSuchElementException e){
+            
+        }finally {
             System.out.println(2);
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             in.close();
             out.close();
             userSet.userQuit(userName);

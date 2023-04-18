@@ -29,7 +29,7 @@ public class DBConnector {
         DBConnector connector = new DBConnector();
         connector.registerUser("a","asd");
 
-        if(!connector.logInUser("a","asd")){
+        if(connector.logInUser("a","asd") == 1){
             System.out.println("User exists.");
         }else{
             System.out.println("Register Successfully.");
@@ -58,17 +58,45 @@ public class DBConnector {
 //        }
     }
 
-    public boolean logInUser(String userName, String password) throws SQLException {
+    public void disconnect(){
+        try {
+            connection.close();
+            statement.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public int logInUser(String userName, String password) throws SQLException {
         String sql = "SELECT * FROM user WHERE name = ?;";
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
         resultSet = preparedStatement.executeQuery();
         System.out.println(resultSet.getFetchSize());
+        boolean chatHistoryExist = false;
+        boolean groupChatExist = false;
         if (resultSet.next()) {
             String correctPW = resultSet.getString("password");
-            return password.equals(correctPW);
+            if(password.equals(correctPW)){
+                Object chatHistory = resultSet.getBytes("chat_history");
+                chatHistoryExist = !resultSet.wasNull();
+                System.out.println("chatHistoryExist is "+chatHistoryExist);
+                Object groupChat = resultSet.getBytes("group_chat_set");
+                groupChatExist = !resultSet.wasNull();
+                System.out.println("groupExist is "+groupChatExist);
+                if(!chatHistoryExist && !groupChatExist){
+                    return 1;
+                } else if (chatHistoryExist && !groupChatExist) {
+                    return 2;
+                } else if (!chatHistoryExist && groupChatExist){
+                    return 3;
+                }else{
+                    return 4;
+                }
+            }
         }
-        return false;
+        return 0;
     }
 
     public boolean registerUser(String userName, String password) throws SQLException {

@@ -67,6 +67,8 @@ public class Controller implements Initializable {
     ObjectInputStream messageIn = null;
     ObjectOutputStream messageOut = null;
 
+    registerTextFieldListener rd;
+
     Stage logInStage = null;
 
     Stage registerStage = null;
@@ -143,7 +145,7 @@ public class Controller implements Initializable {
 
         //successful log in
 
-
+        System.out.println("Enterface");
         currentUsername.setText("Current User: "+username);
 
         registerMessageServer();
@@ -205,8 +207,9 @@ public class Controller implements Initializable {
         reigisterLabel.setTextFill(Color.BLUE);
         reigisterLabel.setUnderline(true);
         reigisterLabel.setCursor(Cursor.HAND);
-        registerTextFieldListener td = new registerTextFieldListener(reigisterLabel);
-        reigisterLabel.setOnMouseClicked(td);
+
+        rd = new registerTextFieldListener(reigisterLabel);
+        reigisterLabel.setOnMouseClicked(rd);
 
         Button logInBtn = new Button("Log in");
         logInBtn.setLayoutX(243.0);
@@ -216,10 +219,74 @@ public class Controller implements Initializable {
         logInBtn.setFont(new Font(19));
 
         logInBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
+            String userName;
+            String password;
             @Override
             public void handle(MouseEvent event) {
                 //todo:Check whether the password is correct or whether there are user with same name online.
+                userName = nameTextField.getText();
+                password = passwordTextField.getText();
 
+                if(userName == null || password == null){
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setContentText("Name or password shouldn't be null.");
+                    alert.showAndWait();
+                    return;
+                }
+                if(!registerServer()){
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setContentText("Duplicated user existing.");
+                    alert.showAndWait();
+                    return;
+                }
+
+                out.println("LOGIN");
+                out.flush();
+                out.println(userName);
+                out.flush();
+                out.println(password);
+                out.flush();
+
+                username = userName;
+
+                String respond = in.next();
+                if(respond.equals("Yes")){
+                    System.out.println("Log in");
+//                    try {
+//                        respond = in.next();
+//                        switch(respond){
+//                            //none exist in db
+//                            case "1":
+//                                System.out.println("Finish");
+//                                break;
+//                            //history exist in db
+//                            case "2":
+//                                usersDialogSet = (HashMap<String, ArrayList<Message>>) obIn.readObject();
+//                                chatList.getItems().addAll(usersDialogSet.keySet());
+//                                break;
+//                            case "3":
+//                                userGroupSet = (HashMap<String, ArrayList<String>>) obIn.readObject();
+//                                break;
+//                            case "4":
+//                                usersDialogSet = (HashMap<String, ArrayList<Message>>) obIn.readObject();
+//                                userGroupSet = (HashMap<String, ArrayList<String>>) obIn.readObject();
+//                                chatList.getItems().addAll(usersDialogSet.keySet());
+//                                break;
+//                        }
+//                    } catch (IOException e) {
+//                        throw new RuntimeException(e);
+//                    } catch (ClassNotFoundException e) {
+//                        throw new RuntimeException(e);
+//                    }
+                    System.out.println(respond);
+                    System.out.println("Close");
+                    logInStage.close();
+                }else{
+                    //todo:Alert error
+                    Alert alert = new Alert(AlertType.INFORMATION);
+                    alert.setContentText("No such user exists or password is wrong.");
+                    alert.showAndWait();
+                }
             }
         });
 
@@ -230,6 +297,11 @@ public class Controller implements Initializable {
             @Override
             public void handle(WindowEvent event) {
                 if(event.getSource()==logInStage){
+                    try {
+                        disconnectServer();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     System.exit(0);
                 }
             }
@@ -257,6 +329,8 @@ public class Controller implements Initializable {
         }
     }
 
+
+    //enter the register window and wait
     private void showRegisterWindow(){
         registerStage = new Stage();
         AnchorPane registerPane = new AnchorPane();
@@ -318,11 +392,9 @@ public class Controller implements Initializable {
         cancelBtn.setPrefSize(102.0,29.0);
         cancelBtn.setFont(new Font(19.0));
 
-        cancelBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
-            @Override
-            public void handle(MouseEvent event) {
-                registerStage.close();
-            }
+        cancelBtn.setOnMouseClicked(event -> {
+            registerStage.close();
+            rd.isRegistering = false;
         });
 
         Label duplicatedPWD = new Label("You enter two different passwords.");
@@ -339,25 +411,25 @@ public class Controller implements Initializable {
         duplicatedUser.setLayoutY(232.0);
         duplicatedUser.setVisible(false);
 
-        registerBtn.setOnMouseClicked(new EventHandler<MouseEvent>() {
-            @Override
-            public void handle(MouseEvent event) {
-                String userName = userNameTextField.getText();
-                String pwd = passwordTextField.getText();
-                if(!pwd.equals(passwordCheckLabel.getText())){
-                    duplicatedPWD.setVisible(true);
-                    return;
-                }
-                //todo:Examine the SQL in server and register a new user account.
-
-                Alert alert = new Alert(AlertType.INFORMATION);
-                alert.setTitle("Register successfully!");
-                alert.setContentText("You have successfully registered user "+username);
-                alert.showAndWait();
-
-                registerStage.close();
+        registerBtn.setOnMouseClicked(event -> {
+            String userName = userNameTextField.getText();
+            String pwd = passwordTextField.getText();
+            if(!pwd.equals(passwordCheckLabel.getText())){
+                duplicatedPWD.setVisible(true);
+                return;
             }
+            //todo:Examine the SQL in server and register a new user account.
+
+            Alert alert = new Alert(AlertType.INFORMATION);
+            alert.setTitle("Register successfully!");
+            alert.setContentText("You have successfully registered user "+username);
+            alert.showAndWait();
+
+            rd.isRegistering = false;
+            registerStage.close();
         });
+
+        registerStage.setOnCloseRequest(event -> rd.isRegistering = false);
 
         Scene scene = new Scene(registerPane);
         registerPane.getChildren().addAll(userNameLabel,passwordLabel,passwordCheckLabel,userNameTextField,passwordTextField,passwordCheckTextField,registerBtn,cancelBtn,duplicatedUser,duplicatedPWD);
@@ -365,6 +437,8 @@ public class Controller implements Initializable {
         registerStage.showAndWait();
     }
 
+
+    //set the alter rule of chat list in main UI
     private void initialChatList(){
         chatList.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> {
@@ -380,6 +454,8 @@ public class Controller implements Initializable {
         );
     }
 
+
+    //set the onCloseQuest of the main stage
     void initialStage(Stage stage){
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
@@ -399,13 +475,14 @@ public class Controller implements Initializable {
         });
     }
 
+
+    //initialize the in and out port of local socket
     private void registerSocket(){
         try {
-            client = new Socket("localhost",130);
-            messageClient = new Socket("localhost",130);
+            client = new Socket("localhost",134);
+            messageClient = new Socket("localhost",134);
             in = new Scanner(client.getInputStream());
             out = new PrintWriter(client.getOutputStream());
-
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -421,9 +498,16 @@ public class Controller implements Initializable {
         onlineCntClient.close();
     }
 
+    private void disconnectServer() throws IOException{
+        out.println("DISCONNECT");
+        out.flush();
+        out.close();
+        in.close();
+        client.close();
+    }
+
     private void registerMessageServer(){
         try {
-
             PrintStream messageOut = new PrintStream(messageClient.getOutputStream());
             messageOut.println("MESSAGEREGISTER "+username);
             messageOut.flush();
@@ -687,7 +771,6 @@ public class Controller implements Initializable {
         }
     }
     class ReceiveListener implements Runnable{
-
         @Override
         public void run() throws IllegalStateException {
             try {

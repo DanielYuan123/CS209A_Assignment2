@@ -8,6 +8,6 @@
         <artifactId>chatting</artifactId>
         <version>dev-SNAPSHOT</version>
     </parent>
-
+    <groupId>cn.edu.sustech.cs209.chatting</groupId>
     <artifactId>chatting-common</artifactId>
 </project>
