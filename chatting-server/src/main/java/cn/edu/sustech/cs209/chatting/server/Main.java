@@ -39,10 +39,6 @@ class handle implements Runnable{
     Socket clientSocket;
     Scanner in;
     PrintWriter out;
-
-    ObjectInputStream obIn;
-
-    ObjectOutputStream obOut;
     String userName;
     public handle(UserSet userset,Socket clientsocket,DBConnector connect) throws IOException {
         userSet = userset;
@@ -122,7 +118,6 @@ class handle implements Runnable{
                     }
                 }
             case "GET":
-
                 ArrayList<String> userList = userSet.getUserNameSet();
                 System.out.println(userName +" access the server now. Users now in the server:");
                 for (String s : userList) {
@@ -136,61 +131,76 @@ class handle implements Runnable{
                 out.flush();
 
                 break;
-//            case "LOGIN":
-//                String name = in.next();
-//                String password = in.next();
-//
-//                try {
-//                    int result = -1;
-//                    if((result = connector.logInUser(name,password)) != 0){
-//                        out.println("Yes");
-//                        out.flush();
-//
-//                        switch(result){
-//                            //none
-//                            case 1:
-//                                out.println(1);
-//                                out.flush();
-//                                System.out.println("sent");
-//                                break;
-//                            //chat
-//                            case 2:
-//                                out.println(2);
-//                                out.flush();
-//
-//                                obOut.writeObject(connector.readDialog(name));
-//                                obOut.flush();
-//                                break;
-//                            //group
-//                            case 3:
-//                                out.println(3);
-//                                out.flush();
-//                                obOut.writeObject(connector.readGroup(name));
-//                                obOut.flush();
-//                                break;
-//                            //both
-//                            case 4:
-//                                out.println(4);
-//                                out.flush();
-//                                obOut.writeObject(connector.readDialog(name));
-//                                obOut.flush();
-//
-//                                obOut.writeObject(connector.readGroup(name));
-//                                obOut.flush();
-//                                break;
-//                        }
-//                    }else{
-//                        out.println("No");
-//                        out.flush();
-//                    }
-//                } catch (SQLException e) {
-//                    throw new RuntimeException(e);
-//                } catch (IOException e) {
-//                    throw new RuntimeException(e);
-//                } catch (ClassNotFoundException e) {
-//                    throw new RuntimeException(e);
-//                }
-//                break;
+            case "LOGIN":
+                String name = in.next();
+                String password = in.next();
+
+                System.out.println("Re");
+
+                try {
+                    ObjectOutputStream outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+                    int result = -1;
+                    if((result = connector.logInUser(name,password)) != 0){
+                        outputStream.writeObject(new String("Yes"));
+                        outputStream.flush();
+
+                        outputStream.writeObject(result);
+                        outputStream.flush();
+
+                        switch(result){
+                            //none
+                            case 1:
+                                System.out.println("sent");
+                                break;
+                            //chat
+                            case 2:
+                                outputStream.writeObject(connector.readDialog(name));
+                                outputStream.flush();
+                                break;
+                            //group
+                            case 3:
+
+                                outputStream.writeObject(connector.readGroup(name));
+                                outputStream.flush();
+                                break;
+                            //both
+                            case 4:
+
+                                outputStream.writeObject(connector.readDialog(name));
+                                outputStream.flush();
+
+                                outputStream.writeObject(connector.readGroup(name));
+                                outputStream.flush();
+                                break;
+                        }
+                    }else{
+                        outputStream.writeObject(new String("No"));
+                        outputStream.flush();
+                    }
+                    clientSocket.close();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
+            case "REGISTERDB":
+                String newUser = in.next();
+                String pwd = in.next();
+                try {
+                    if(connector.registerUser(newUser,pwd)){
+                        out.println("OK");
+                        out.flush();
+                    }else{
+                        out.println("NO");
+                        out.flush();
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                break;
         }
     }
     @Override
@@ -208,7 +218,7 @@ class handle implements Runnable{
                 execute(command);
             }
         } catch (NoSuchElementException e){
-            
+
         }finally {
             System.out.println(2);
             try {

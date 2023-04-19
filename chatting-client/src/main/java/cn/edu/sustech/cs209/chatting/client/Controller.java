@@ -4,16 +4,15 @@ import cn.edu.sustech.cs209.chatting.common.Message;
 
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.*;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
-import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -49,15 +48,21 @@ public class Controller implements Initializable {
     @FXML
     ListView<String> chatList;
     @FXML
+    ListView<String> groupUserList;
+    @FXML
+    ListView<String> onlineUserList;
+    @FXML
     TextArea inputArea;
     @FXML
     TextArea Notification;
+
+
+    ArrayList<String> userOnline = new ArrayList<>(5);
 
     HashMap<String, ArrayList<Message>> usersDialogSet = new HashMap<>();
     HashMap<String, ArrayList<String>> userGroupSet = new HashMap<>();
 
     String username;
-
     String currentChatMate = null;
     Socket client;
     Socket messageClient;
@@ -76,6 +81,7 @@ public class Controller implements Initializable {
     Thread listenThread;
 
     Thread onlineCntThread;
+    Thread onlineUserThread;
 
 
     @Override
@@ -86,6 +92,7 @@ public class Controller implements Initializable {
         showLogInWindow();
 
         initialChatList();
+
         Notification.setEditable(false);
 //        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("login.fxml"));
 //        try {
@@ -144,8 +151,6 @@ public class Controller implements Initializable {
 //        }
 
         //successful log in
-
-        System.out.println("Enterface");
         currentUsername.setText("Current User: "+username);
 
         registerMessageServer();
@@ -157,14 +162,23 @@ public class Controller implements Initializable {
             throw new RuntimeException(e);
         }
 
+        onlineUserList.setCellFactory(new UserCellFactory());
+        onlineUserList.setItems(FXCollections.observableArrayList());
+
+        groupUserList.setCellFactory(new UserCellFactory());
+        groupUserList.setItems(FXCollections.observableArrayList());
+
 
         chatContentList.setCellFactory(new MessageCellFactory());
         chatContentList.setItems(FXCollections.observableArrayList());
 
-            listenThread = new Thread(new ReceiveListener());
-            listenThread.start();
-            onlineCntThread = new Thread(new OnlineCntListener());
-            onlineCntThread.start();
+        listenThread = new Thread(new ReceiveListener());
+        listenThread.start();
+        onlineCntThread = new Thread(new OnlineCntListener());
+        onlineCntThread.start();
+        onlineUserThread = new Thread(new OnlineUserListener());
+        onlineUserThread.start();
+
         //Platform.runLater(new ReceiveListener());
     }
 
@@ -233,59 +247,66 @@ public class Controller implements Initializable {
                     alert.showAndWait();
                     return;
                 }
-                if(!registerServer()){
-                    Alert alert = new Alert(AlertType.ERROR);
-                    alert.setContentText("Duplicated user existing.");
-                    alert.showAndWait();
-                    return;
-                }
 
-                out.println("LOGIN");
-                out.flush();
-                out.println(userName);
-                out.flush();
-                out.println(password);
-                out.flush();
+                try {
+                    Socket logInSocket = new Socket("localhost",134);
+                    System.out.println(logInSocket.isConnected());
+                    PrintWriter out  = new PrintWriter(logInSocket.getOutputStream());
 
-                username = userName;
+                    out.println("LOGIN");
+                    out.flush();
+                    out.println(userName);
+                    out.flush();
+                    out.println(password);
+                    out.flush();
 
-                String respond = in.next();
-                if(respond.equals("Yes")){
-                    System.out.println("Log in");
-//                    try {
-//                        respond = in.next();
-//                        switch(respond){
-//                            //none exist in db
-//                            case "1":
-//                                System.out.println("Finish");
-//                                break;
-//                            //history exist in db
-//                            case "2":
-//                                usersDialogSet = (HashMap<String, ArrayList<Message>>) obIn.readObject();
-//                                chatList.getItems().addAll(usersDialogSet.keySet());
-//                                break;
-//                            case "3":
-//                                userGroupSet = (HashMap<String, ArrayList<String>>) obIn.readObject();
-//                                break;
-//                            case "4":
-//                                usersDialogSet = (HashMap<String, ArrayList<Message>>) obIn.readObject();
-//                                userGroupSet = (HashMap<String, ArrayList<String>>) obIn.readObject();
-//                                chatList.getItems().addAll(usersDialogSet.keySet());
-//                                break;
-//                        }
-//                    } catch (IOException e) {
-//                        throw new RuntimeException(e);
-//                    } catch (ClassNotFoundException e) {
-//                        throw new RuntimeException(e);
-//                    }
+                    System.out.println("gis");
+
+                    ObjectInputStream inputStream = new ObjectInputStream(logInSocket.getInputStream());
+
+                    String respond =(String)inputStream.readObject();
+
                     System.out.println(respond);
-                    System.out.println("Close");
-                    logInStage.close();
-                }else{
-                    //todo:Alert error
-                    Alert alert = new Alert(AlertType.INFORMATION);
-                    alert.setContentText("No such user exists or password is wrong.");
-                    alert.showAndWait();
+
+                    if(respond.equals("Yes")){
+                        Integer responds = (Integer)inputStream.readObject();
+                        switch(responds){
+                            //none exist in db
+                            case 1:
+                                System.out.println("Finish");
+                                break;
+                            //history exist in db
+                            case 2:
+                                usersDialogSet = (HashMap<String, ArrayList<Message>>) inputStream.readObject();
+                                chatList.getItems().addAll(usersDialogSet.keySet());
+                                break;
+                            case 3:
+                                userGroupSet = (HashMap<String, ArrayList<String>>) inputStream.readObject();
+                                break;
+                            case 4:
+                                usersDialogSet = (HashMap<String, ArrayList<Message>>) inputStream.readObject();
+                                userGroupSet = (HashMap<String, ArrayList<String>>) inputStream.readObject();
+                                chatList.getItems().addAll(usersDialogSet.keySet());
+                                break;
+                        }
+                        username = userName;
+                        if(!registerServer()){
+                            Alert alert = new Alert(AlertType.ERROR);
+                            alert.setContentText("Duplicated user existing.");
+                            alert.showAndWait();
+                            return;
+                        }
+                        logInSocket.close();
+                        logInStage.close();
+                    }else{
+                        Alert alert = new Alert(AlertType.INFORMATION);
+                        alert.setContentText("No such user exists or password is wrong.");
+                        alert.showAndWait();
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
                 }
             }
         });
@@ -414,19 +435,35 @@ public class Controller implements Initializable {
         registerBtn.setOnMouseClicked(event -> {
             String userName = userNameTextField.getText();
             String pwd = passwordTextField.getText();
-            if(!pwd.equals(passwordCheckLabel.getText())){
+            if(pwd.equals(passwordCheckLabel.getText())){
                 duplicatedPWD.setVisible(true);
                 return;
             }
             //todo:Examine the SQL in server and register a new user account.
+            out.println("REGISTERDB");
+            out.flush();
 
-            Alert alert = new Alert(AlertType.INFORMATION);
-            alert.setTitle("Register successfully!");
-            alert.setContentText("You have successfully registered user "+username);
-            alert.showAndWait();
+            out.println(userName);
+            out.flush();
 
-            rd.isRegistering = false;
-            registerStage.close();
+            out.println(pwd);
+            out.flush();
+
+            String respond = in.next();
+            if(respond.equals("OK")){
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Register successfully!");
+                alert.setContentText("You have successfully registered user "+userName);
+                alert.showAndWait();
+
+                rd.isRegistering = false;
+                registerStage.close();
+            }else{
+                Alert alert = new Alert(AlertType.INFORMATION);
+                alert.setTitle("Register failed.");
+                alert.setContentText("User exists.");
+                alert.showAndWait();
+            }
         });
 
         registerStage.setOnCloseRequest(event -> rd.isRegistering = false);
@@ -446,6 +483,16 @@ public class Controller implements Initializable {
                         usersDialogSet.get(currentChatMate).clear();
                         usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
                     }
+                    if(newValue != null){
+                        if(userGroupSet.containsKey(newValue)){
+                            groupUserList.getItems().clear();
+                            groupUserList.getItems().setAll(userGroupSet.get(newValue));
+                            System.out.println("Import users");
+                        }else{
+                            groupUserList.getItems().clear();
+                            System.out.println("Clear users.");
+                        }
+                    }
                     chatContentList.getItems().clear();
                     chatContentList.getItems().setAll(usersDialogSet.get(newValue));
                     currentChatMate = newValue;
@@ -454,12 +501,18 @@ public class Controller implements Initializable {
         );
     }
 
+    private void saveData(){
+
+    }
+
 
     //set the onCloseQuest of the main stage
     void initialStage(Stage stage){
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
             public void handle(WindowEvent windowEvent){
+                //todo: savedata
+
                 if(windowEvent.getSource() == stage){
                     try {
                         listenThread.interrupt();
@@ -469,7 +522,6 @@ public class Controller implements Initializable {
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
-
                 }
             }
         });
@@ -526,7 +578,7 @@ public class Controller implements Initializable {
         }
         return true;
     }
-    private ArrayList<String> getServerUsers(){
+    private ArrayList<String> getServerUsers() throws SocketException{
         out.println("GET");
         out.flush();
 
@@ -553,8 +605,17 @@ public class Controller implements Initializable {
         userSel.setCellFactory(new UserCellFactory());
 
         // FIXME: get the user list from server, the current user's name should be filtered out
+        try{
         ArrayList<String>users = getServerUsers();
         userSel.getItems().setAll(users);
+        }catch (NoSuchElementException | SocketException e){
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("No available chat mate");
+            alert.setContentText("Select an available from the left pane to chat with. If there's no content, generate a new chat from menu bar.");
+            alert.showAndWait();
+            return;
+        }
+
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
@@ -563,9 +624,11 @@ public class Controller implements Initializable {
 
             //Add new a user chatting item to the left pane
             if(usersDialogSet.size()!=0){
-                usersDialogSet.get(currentChatMate).clear();
-                usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
-                chatContentList.getItems().clear();
+                if(currentChatMate != null){
+                    usersDialogSet.get(currentChatMate).clear();
+                    usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
+                    chatContentList.getItems().clear();
+                }
             }
 
             if(chatList.getItems().contains(user.get())){
@@ -605,76 +668,85 @@ public class Controller implements Initializable {
      */
     @FXML
     private void createGroupChat() {
-        Stage stage = new Stage();
+        try {
+            Stage stage = new Stage();
 
-        ListView<CheckBox> userSel = new ListView<>();
-        userSel.setItems(FXCollections.observableArrayList());
-        ArrayList<CheckBox> onlineUsers = new ArrayList<>();
-        ArrayList<String> onlineUsersString = getServerUsers();
-        for (String s : onlineUsersString) {
-            onlineUsers.add(new CheckBox(s));
-        }
-        userSel.getItems().addAll(onlineUsers);
-        Button okBtn = new Button("OK");
-        okBtn.setOnAction(e -> {
-            stage.close();
-            ArrayList<CheckBox> userSet = new ArrayList<>();
-            ArrayList<String> selected = new ArrayList<>();
+            ListView<CheckBox> userSel = new ListView<>();
+            userSel.setItems(FXCollections.observableArrayList());
+            ArrayList<CheckBox> onlineUsers = new ArrayList<>();
 
-            userSet.addAll(userSel.getItems());
+            ArrayList<String> onlineUsersString = getServerUsers();
+            for (String s : onlineUsersString) {
+                onlineUsers.add(new CheckBox(s));
+            }
+            userSel.getItems().addAll(onlineUsers);
+            Button okBtn = new Button("OK");
+            okBtn.setOnAction(e -> {
+                stage.close();
+                ArrayList<CheckBox> userSet = new ArrayList<>();
+                ArrayList<String> selected = new ArrayList<>();
 
-            for (CheckBox checkBox : userSet) {
-                if(checkBox.isSelected()){
-                    selected.add(checkBox.getText());
+                userSet.addAll(userSel.getItems());
+
+                for (CheckBox checkBox : userSet) {
+                    if (checkBox.isSelected()) {
+                        selected.add(checkBox.getText());
+                    }
                 }
-            }
 
-            if(selected.size()==1){
-                Alert alert = new Alert(AlertType.ERROR);
-                alert.setContentText("Please choose at least two user to create a group chat.");
-                alert.showAndWait();
-                return;
-            }
-            selected.add(username);
-            Collections.sort(selected);
-            String groupChatMate = null;
-            if(selected.size() > 3){
-                groupChatMate = String.format("%s, %s, %s...(%d)",selected.get(0),selected.get(1),selected.get(2),selected.size());
-            }else{
-                groupChatMate = String.format("%s, %s, %s(3)",selected.get(0),selected.get(1),selected.get(2));
-            }
-            int duplicated = 1;
-            String finalGroupChatMate = groupChatMate + "";
-            while(userGroupSet.containsKey(groupChatMate)){
-                finalGroupChatMate = String.format("%s[%d]",groupChatMate,duplicated);
-                duplicated++;
-            }
+                if (selected.size() == 1) {
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setContentText("Please choose at least two user to create a group chat.");
+                    alert.showAndWait();
+                    return;
+                }
+                selected.add(username);
+                Collections.sort(selected);
+                String groupChatMate = null;
+                if (selected.size() > 3) {
+                    groupChatMate = String.format("%s, %s, %s...(%d)", selected.get(0),
+                        selected.get(1), selected.get(2), selected.size());
+                } else {
+                    groupChatMate = String.format("%s, %s, %s(3)", selected.get(0), selected.get(1),
+                        selected.get(2));
+                }
+                int duplicated = 1;
+                String finalGroupChatMate = groupChatMate + "";
+                while (userGroupSet.containsKey(groupChatMate)) {
+                    finalGroupChatMate = String.format("%s[%d]", groupChatMate, duplicated);
+                    duplicated++;
+                }
 
-            userGroupSet.put(finalGroupChatMate,selected);
+                userGroupSet.put(finalGroupChatMate, selected);
 
-            if(usersDialogSet.size()!=0){
-                usersDialogSet.get(currentChatMate).clear();
-                usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
-                chatContentList.getItems().clear();
-            }
+                if (usersDialogSet.size() != 0) {
+                    usersDialogSet.get(currentChatMate).clear();
+                    usersDialogSet.get(currentChatMate).addAll(chatContentList.getItems());
+                    chatContentList.getItems().clear();
+                }
 
-            chatList.getItems().add(finalGroupChatMate);
-            usersDialogSet.put(finalGroupChatMate,new ArrayList<>(5));
-            chatContentList.getItems().setAll(usersDialogSet.get(finalGroupChatMate));
+                chatList.getItems().add(finalGroupChatMate);
+                usersDialogSet.put(finalGroupChatMate, new ArrayList<>(5));
+                chatContentList.getItems().setAll(usersDialogSet.get(finalGroupChatMate));
 
-            currentChatMate = finalGroupChatMate;
-            Location.setText(currentChatMate);
+                currentChatMate = finalGroupChatMate;
+                Location.setText(currentChatMate);
 
-        });
+            });
 
-        HBox box = new HBox(10);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(20, 20, 20, 20));
-        box.getChildren().addAll(userSel, okBtn);
-        stage.setScene(new Scene(box));
-        stage.showAndWait();
-
-
+            HBox box = new HBox(10);
+            box.setAlignment(Pos.CENTER);
+            box.setPadding(new Insets(20, 20, 20, 20));
+            box.getChildren().addAll(userSel, okBtn);
+            stage.setScene(new Scene(box));
+            stage.showAndWait();
+        }catch (SocketException | NoSuchElementException e){
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Server closed");
+            alert.setContentText("You can't send message to closed server.");
+            alert.showAndWait();
+            return;
+        }
     }
 
     /**
@@ -686,6 +758,15 @@ public class Controller implements Initializable {
     @FXML
     private void doSendMessage() {
         String text = inputArea.getText();
+
+        if(text.equals("")){
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Empty chat detected");
+            alert.setContentText("You can't enter an empty chat.");
+            alert.showAndWait();
+            return;
+        }
+
         if(currentChatMate==null){
             Alert alert = new Alert(AlertType.ERROR);
             alert.setTitle("No available chat mate");
@@ -695,6 +776,7 @@ public class Controller implements Initializable {
         }
 
         if(userGroupSet.containsKey(currentChatMate)){
+            try {
             ArrayList<String> usersSendTo = userGroupSet.get(currentChatMate);
 
             Message message = new Message(System.currentTimeMillis(),username,currentChatMate,text);
@@ -705,34 +787,79 @@ public class Controller implements Initializable {
             chatContentList.getItems().add(message);
             inputArea.clear();
 
-            try {
-                messageOut.writeObject(message);
-                messageOut.flush();
+
+            messageOut.writeObject(message);
+            messageOut.flush();
+            }  catch (SocketException e){
+                Alert alert = new Alert(AlertType.ERROR);
+                alert.setTitle("Server closed");
+                alert.setContentText("You can't send message to closed server.");
+                alert.showAndWait();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
             return;
         }
         //send to
-        Message message = new Message(System.currentTimeMillis(),username,currentChatMate,text);
-        usersDialogSet.get(currentChatMate).add(message);
-        chatContentList.getItems().add(message);
-        inputArea.clear();
-
-        if(!getServerUsers().contains(currentChatMate)){
-            Notification.setText("The user " + currentChatMate + " you are chatting with is offline now.");
-            Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
-            autoClear.setCycleCount(1);
-            autoClear.play();
-        }
-
         try {
+            Message message = new Message(System.currentTimeMillis(), username, currentChatMate,
+                text);
+            usersDialogSet.get(currentChatMate).add(message);
+            chatContentList.getItems().add(message);
+            inputArea.clear();
+
+            if (!getServerUsers().contains(currentChatMate)) {
+                Notification.setText(
+                    "The user " + currentChatMate + " you are chatting with is offline now.");
+                Timeline autoClear = new Timeline(
+                    new KeyFrame(Duration.seconds(5), e -> Notification.clear()));
+                autoClear.setCycleCount(1);
+                autoClear.play();
+            }
+
             messageOut.writeObject(message);
             messageOut.flush();
+        }catch (NoSuchElementException | SocketException e) {
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Server closed");
+            alert.setContentText("You can't send message to closed server.");
+            alert.showAndWait();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
+    }
+
+
+    class OnlineUserListener implements Runnable{
+        @Override
+        public void run() {
+            try {
+            Socket userSocket = new Socket("localhost",134);
+            PrintWriter out = new PrintWriter(userSocket.getOutputStream());
+            Scanner input = new Scanner(userSocket.getInputStream());
+            while(true){
+                out.println("GET");
+                out.flush();
+
+                ArrayList<String> output = new ArrayList<>(5);
+                String nextLine = null;
+                while((nextLine = input.next())!=null){
+                    if(nextLine.equals("OVER")){
+                        break;
+                    }
+                    output.add(nextLine);
+                }
+                Platform.runLater(()->{
+                    onlineUserList.getItems().clear();
+                    onlineUserList.getItems().addAll(output);
+                });
+                Thread.sleep(100);
+            }
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 
@@ -741,7 +868,7 @@ public class Controller implements Initializable {
         public void run() {
             try {
                 Thread.sleep(1);
-                onlineCntClient = new Socket("localhost",130);
+                onlineCntClient = new Socket("localhost",134);
                 Scanner onlineCntSc = new Scanner(onlineCntClient.getInputStream());
                 PrintStream onlineInital = new PrintStream(onlineCntClient.getOutputStream());
                 onlineInital.println("GRASP");
@@ -755,7 +882,11 @@ public class Controller implements Initializable {
                 onlineCntClient.close();
                 onlineInital.close();
                 onlineCntSc.close();
-                System.out.println("Closed");
+                Platform.runLater(()->{
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setContentText("Server closed detected. Quit the application or wait for our fixing.");
+                    alert.showAndWait();
+                });
             } catch (IOException e) {
                 throw new RuntimeException(e);
             } catch (InterruptedException e){
@@ -766,8 +897,6 @@ public class Controller implements Initializable {
                     throw new RuntimeException(ex);
                 }
             }
-
-
         }
     }
     class ReceiveListener implements Runnable{
@@ -896,7 +1025,6 @@ public class Controller implements Initializable {
                         wrapper.getChildren().addAll(nameLabel, msgLabel);
                         msgLabel.setPadding(new Insets(0, 0, 0, 20));
                     }
-
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
                     setGraphic(wrapper);
                 }
