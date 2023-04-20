@@ -5,6 +5,7 @@ import cn.edu.sustech.cs209.chatting.common.Message;
 import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import javafx.animation.KeyFrame;
@@ -179,7 +180,6 @@ public class Controller implements Initializable {
         onlineUserThread = new Thread(new OnlineUserListener());
         onlineUserThread.start();
 
-        //Platform.runLater(new ReceiveListener());
     }
 
     public void showLogInWindow(){
@@ -250,7 +250,6 @@ public class Controller implements Initializable {
 
                 try {
                     Socket logInSocket = new Socket("localhost",134);
-                    System.out.println(logInSocket.isConnected());
                     PrintWriter out  = new PrintWriter(logInSocket.getOutputStream());
 
                     out.println("LOGIN");
@@ -260,20 +259,15 @@ public class Controller implements Initializable {
                     out.println(password);
                     out.flush();
 
-                    System.out.println("gis");
-
                     ObjectInputStream inputStream = new ObjectInputStream(logInSocket.getInputStream());
 
                     String respond =(String)inputStream.readObject();
-
-                    System.out.println(respond);
 
                     if(respond.equals("Yes")){
                         Integer responds = (Integer)inputStream.readObject();
                         switch(responds){
                             //none exist in db
                             case 1:
-                                System.out.println("Finish");
                                 break;
                             //history exist in db
                             case 2:
@@ -487,10 +481,8 @@ public class Controller implements Initializable {
                         if(userGroupSet.containsKey(newValue)){
                             groupUserList.getItems().clear();
                             groupUserList.getItems().setAll(userGroupSet.get(newValue));
-                            System.out.println("Import users");
                         }else{
                             groupUserList.getItems().clear();
-                            System.out.println("Clear users.");
                         }
                     }
                     chatContentList.getItems().clear();
@@ -516,11 +508,9 @@ public class Controller implements Initializable {
                 if(windowEvent.getSource() == stage){
                     try {
                         listenThread.interrupt();
-//                        onlineCntThread.interrupt();
                         quitServer();
                         System.exit(0);
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
                     }
                 }
             }
@@ -650,10 +640,6 @@ public class Controller implements Initializable {
         box.getChildren().addAll(userSel, okBtn);
         stage.setScene(new Scene(box));
         stage.showAndWait();
-
-
-        // TODO: if the current user already chatted with the selected user, just open the chat with that user
-        // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
     }
 
     /**
@@ -815,6 +801,7 @@ public class Controller implements Initializable {
                     new KeyFrame(Duration.seconds(5), e -> Notification.clear()));
                 autoClear.setCycleCount(1);
                 autoClear.play();
+                return;
             }
 
             messageOut.writeObject(message);
@@ -827,7 +814,6 @@ public class Controller implements Initializable {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
     }
 
 
@@ -856,6 +842,8 @@ public class Controller implements Initializable {
                 });
                 Thread.sleep(100);
             }
+            }catch(NoSuchElementException e){
+                return;
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -891,7 +879,6 @@ public class Controller implements Initializable {
                 throw new RuntimeException(e);
             } catch (InterruptedException e){
                 try {
-                    System.out.println("close");
                     onlineCntClient.close();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -906,7 +893,6 @@ public class Controller implements Initializable {
                 while(!Thread.currentThread().isInterrupted()){
                     Thread.sleep(1);
                     Message receivedMessage = (Message) messageIn.readObject();
-                    System.out.println("get message");
                     String from = receivedMessage.getSentBy();
                     String to = receivedMessage.getSendTo();
                     if(receivedMessage.isGroupMessage()){
@@ -914,8 +900,6 @@ public class Controller implements Initializable {
                     }else{
                         Notification.setText("You receive an information from "+from+".");
                     }
-
-
 
                     Timeline autoClear = new Timeline(new KeyFrame(Duration.seconds(5),e -> Notification.clear()));
                     autoClear.setCycleCount(1);
@@ -937,8 +921,6 @@ public class Controller implements Initializable {
                         usersDialogSet.get(to).add(receivedMessage);
                         continue;
                     }
-
-
                     if(!chatList.getItems().contains(from)){
                         Platform.runLater(() -> chatList.getItems().add(from));
                         usersDialogSet.put(from,new ArrayList<Message>());
@@ -950,7 +932,6 @@ public class Controller implements Initializable {
                     }
                     usersDialogSet.get(from).add(receivedMessage);
                 }
-
             } catch (EOFException e){
 
             } catch (IOException | ClassNotFoundException e) {
@@ -1011,6 +992,14 @@ public class Controller implements Initializable {
                     HBox wrapper = new HBox();
                     Label nameLabel = new Label(msg.getSentBy());
                     Label msgLabel = new Label(msg.getData());
+                    Label timeLabel = new Label();
+
+                    SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd 'at' HH:mm:ss z");
+
+                    timeLabel.setText(formatter.format(new Date(msg.getTimestamp())));
+                    timeLabel.setFont(new Font(8.0));
+                    timeLabel.setUnderline(true);
+                    timeLabel.setStyle("-fx-border-color: red; -fx-border-width: 1px");
 
                     nameLabel.setPrefSize(50, 20);
                     nameLabel.setWrapText(true);
@@ -1018,11 +1007,11 @@ public class Controller implements Initializable {
 
                     if (username.equals(msg.getSentBy())) {
                         wrapper.setAlignment(Pos.TOP_RIGHT);
-                        wrapper.getChildren().addAll(msgLabel, nameLabel);
+                        wrapper.getChildren().addAll(msgLabel, nameLabel,timeLabel);
                         msgLabel.setPadding(new Insets(0, 20, 0, 0));
                     } else {
                         wrapper.setAlignment(Pos.TOP_LEFT);
-                        wrapper.getChildren().addAll(nameLabel, msgLabel);
+                        wrapper.getChildren().addAll(timeLabel,nameLabel, msgLabel);
                         msgLabel.setPadding(new Insets(0, 0, 0, 20));
                     }
                     setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
@@ -1031,5 +1020,4 @@ public class Controller implements Initializable {
             };
         }
     }
-
 }

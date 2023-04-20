@@ -73,7 +73,6 @@ public class DBConnector {
         preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1,userName);
         resultSet = preparedStatement.executeQuery();
-        System.out.println(resultSet.getFetchSize());
         boolean chatHistoryExist = false;
         boolean groupChatExist = false;
         if (resultSet.next()) {
@@ -81,10 +80,8 @@ public class DBConnector {
             if(password.equals(correctPW)){
                 Object chatHistory = resultSet.getBytes("chat_history");
                 chatHistoryExist = !resultSet.wasNull();
-                System.out.println("chatHistoryExist is "+chatHistoryExist);
                 Object groupChat = resultSet.getBytes("group_chat_set");
                 groupChatExist = !resultSet.wasNull();
-                System.out.println("groupExist is "+groupChatExist);
                 if(!chatHistoryExist && !groupChatExist){
                     return 1;
                 } else if (chatHistoryExist && !groupChatExist) {

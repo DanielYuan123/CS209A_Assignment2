@@ -56,7 +56,6 @@ class handle implements Runnable{
                         while (!clientSocket.isClosed()) {
                             onlineCntIn.println(userSet.userNameSet.size());
                             onlineCntIn.flush();
-//                            System.out.println("Working");
                             Thread.sleep(20);
                         }
                     } catch(SocketException e){
@@ -93,7 +92,6 @@ class handle implements Runnable{
                             to = serverMessage.getSendTo();
                         }
                         if(serverMessage.getSentBy().equals("SYSTEM")&&serverMessage.getSendTo().equals("SERVER")&&serverMessage.getData().equals("CLOSE")){
-                            System.out.println(1);
                             Thread.currentThread().interrupt();
                             return;
                         }
@@ -113,16 +111,14 @@ class handle implements Runnable{
                         targetOutput = userSet.getInput(to);
                         targetOutput.writeObject(serverMessage);
                         targetOutput.flush();
+                    } catch(EOFException | SocketException e){
+                        break;
                     } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
                 }
             case "GET":
                 ArrayList<String> userList = userSet.getUserNameSet();
-                System.out.println(userName +" access the server now. Users now in the server:");
-                for (String s : userList) {
-                    System.out.println(s);
-                }
                 for (int i = 0; i < userList.size(); i++) {
                     out.println(userList.get(i));
                     out.flush();
@@ -134,8 +130,6 @@ class handle implements Runnable{
             case "LOGIN":
                 String name = in.next();
                 String password = in.next();
-
-                System.out.println("Re");
 
                 try {
                     ObjectOutputStream outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
@@ -150,7 +144,6 @@ class handle implements Runnable{
                         switch(result){
                             //none
                             case 1:
-                                System.out.println("sent");
                                 break;
                             //chat
                             case 2:
@@ -220,7 +213,6 @@ class handle implements Runnable{
         } catch (NoSuchElementException e){
 
         }finally {
-            System.out.println(2);
             try {
                 clientSocket.close();
             } catch (IOException e) {
