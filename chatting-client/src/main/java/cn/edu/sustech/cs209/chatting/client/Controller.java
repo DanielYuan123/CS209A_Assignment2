@@ -849,8 +849,6 @@ public class Controller implements Initializable {
             }
         }
     }
-
-
     class OnlineCntListener implements Runnable{
         @Override
         public void run() {
