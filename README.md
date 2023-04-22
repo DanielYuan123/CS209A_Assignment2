@@ -1,98 +1,24 @@
 # 🫧 Chatting
 
-![CourseInfo](https://img.shields.io/badge/sustech--cs209-23sp%3Aassign2-brightgreen)
-![License](https://img.shields.io/github/license/hezean/chatting)
+### 1.User information storage (Login and registration)
+   Use sqlite database to storage the users' information.
 
-**Chatting** is a simple online-chat application, based on JavaFX and Socket.
-In this assignment, you will need to implement a WeChat like program, but much simpler.
+   Here are some user template used for testing.
 
-## Quickstart
+![img.png](img.png)
 
-Click the [use template](https://github.com/hezean/chatting/generate) to create a fork of this template - to avoid potential plagiarism dispute,
-**please be sure that your repository is made _private_ before the deadline**.
+   Or you can register a new user in the registration UI.
 
-You need to then clone your fork into local machine. You can then open the whole folder as a project in your
-IDE - it will recognize the Maven structure and automatically configure the project.
+![img_1.png](img_1.png)
 
-![](assets/project-structure.png)
+### 2.User interface
 
-### Install the Project
+For the UI part, we can find the whole interface is splitted into for main parts: users sheet, recent chat, current dialog and group members list, from left to right.
 
-We will define the commonly used constants and models in the `chatting-common` model,
-which is the dependency of `chatting-client` and `chatting-server`.
+On the bottom, you can find the Current login user, current chat mate and online users count from left to right.
 
-> This design is a common practice in many large projects.
-> But it is not mandatory for you to follow this architecture.
-> You can move the model codes to other places if you want.
+There is also a blank area above the dialog part and group member list used as notification area.(When you receive message from another user or a group, you will note it there)
 
-Now, the first thing you need to do is to install the parent pom into the local maven repository.
-
-```shell
-mvn install
-```
-
-If you are a Windows user who has not configured Maven environment variables, you can run this command in IDEA by several ways as below:
-
-- double click the Ctrl key in IDEA to bring up a "Run Anything" pop-up window, then enter the command
-- click the "Execute Maven Goal" button on the top of Maven side bar, then enter the command
-- simply click on the "install" option in the "Lifecycle" folder of Maven side bar
+![img_2.png](img_2.png)
 
 
-<p align="center">
-  <img  src="assets/mvn_command.jpg">
-</p>
-
-Note that each time after you modified the codes in `chatting-common`, you need to reinstall
-the subproject -- you can think about why.
-
-```shell
-mvn install -pl chatting-common
-```
-
-### Run the Server
-
-As our client will try to connect to the server socket when starting-up, you need to run the server before starting
-one or more clients.
-
-Please find the `Main` class under the `chatting-server` model, implement your `ServerSocket`,
-and run the `main` method.
-
-### Run the Client
-
-If you are using JDK 1.8 with JavaFX bundled, you may find the `Main` class under the `chatting-client` model,
-and run the `main` method to start a client.
-Note that you can start multiple clients by clicking the _run_ button several times.
-
-If you are using JDK in any higher version, please use the `javafx` plugin to run the client.
-```shell
-mvn javafx:run -pl chatting-client
-```
-
-Alternatively, you can find the goal in the plugin list, and click on it:
-![](assets/idea-maven-javafx-plugin.png)
-
-## Tasks
-
-- [ ] Server & Client (70 pt)
-- [ ] JavaFX GUI (15 pt)
-- [ ] Exception handling (15 pt)
-- [ ] Bonus (12 pt)
-
-For more details, please refer to the [assignment description](DESCRIPTION.md).
-
-## Hint
-
-As this project is Maven managed, it's easy to introduce _dependencies_ and _build plugins_.
-This template already added some dependencies that may help you finish this assignment,
-you can search their documents and try figuring out how these dependencies could be helpful, but it's not
-necessary to use them. You may also introduce some other dependencies, but ask the teacher or SA before doing so.
-
-## More Information
-
-If there's anything ambiguous about the document or the instruction above,
-feel free to [open an issue](https://github.com/hezean/chatting/issues/new) and ask.
-Your question may also help others to better understand this assignment 🔥
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

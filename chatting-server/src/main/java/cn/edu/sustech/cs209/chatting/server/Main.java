@@ -7,10 +7,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.sql.SQLException;
-import java.sql.SQLOutput;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
@@ -24,23 +22,24 @@ public class Main {
         userSet = new UserSet();
         connector = new DBConnector();
 
-        while(true){
+        while (true) {
             Socket socket = server.accept();
-            handle han = new handle(userSet,socket,connector);
+            handle han = new handle(userSet, socket, connector);
             Thread thread = new Thread(han);
             thread.start();
         }
     }
 }
 
-class handle implements Runnable{
+class handle implements Runnable {
     DBConnector connector;
     UserSet userSet;
     Socket clientSocket;
     Scanner in;
     PrintWriter out;
     String userName;
-    public handle(UserSet userset,Socket clientsocket,DBConnector connect) throws IOException {
+
+    public handle(UserSet userset, Socket clientsocket, DBConnector connect) throws IOException {
         userSet = userset;
         clientSocket = clientsocket;
         connector = connect;
@@ -48,34 +47,34 @@ class handle implements Runnable{
         out = new PrintWriter(clientSocket.getOutputStream());
     }
 
-    public void execute(String command){
-        switch(command){
+    public void execute(String command) {
+        switch (command) {
             case "GRASP":
-                    try {
-                        PrintStream onlineCntIn = new PrintStream(clientSocket.getOutputStream());
-                        while (!clientSocket.isClosed()) {
-                            onlineCntIn.println(userSet.userNameSet.size());
-                            onlineCntIn.flush();
-                            Thread.sleep(20);
-                        }
-                    } catch(SocketException e){
-                    } catch (IOException | InterruptedException e) {
+                try {
+                    PrintStream onlineCntIn = new PrintStream(clientSocket.getOutputStream());
+                    while (!clientSocket.isClosed()) {
+                        onlineCntIn.println(userSet.userNameSet.size());
+                        onlineCntIn.flush();
+                        Thread.sleep(20);
                     }
+                } catch (SocketException e) {
+                } catch (IOException | InterruptedException e) {
+                }
                 break;
             case "REGISTER":
                 userName = in.next();
-                if(userSet.userNameSet.contains(userName)){
+                if (userSet.userNameSet.contains(userName)) {
                     out.println("DENY");
                     out.flush();
-                }else{
-                    userSet.addUser(userName,clientSocket);
+                } else {
+                    userSet.addUser(userName, clientSocket);
                     out.println("OK");
                     out.flush();
                 }
                 break;
             case "MESSAGEREGISTER":
                 userName = in.next();
-                userSet.addUserMessage(userName,clientSocket);
+                userSet.addUserMessage(userName, clientSocket);
                 ObjectInputStream messageInputStream = null;
                 try {
                     messageInputStream = new ObjectInputStream(clientSocket.getInputStream());
@@ -83,24 +82,24 @@ class handle implements Runnable{
                     throw new RuntimeException(e);
                 }
 
-                while(true){
+                while (true) {
                     try {
                         String to = null;
                         Message serverMessage = null;
-                        while(to == null){
-                            serverMessage = (Message)messageInputStream.readObject();
+                        while (to == null) {
+                            serverMessage = (Message) messageInputStream.readObject();
                             to = serverMessage.getSendTo();
                         }
-                        if(serverMessage.getSentBy().equals("SYSTEM")&&serverMessage.getSendTo().equals("SERVER")&&serverMessage.getData().equals("CLOSE")){
+                        if (serverMessage.getSentBy().equals("SYSTEM") && serverMessage.getSendTo().equals("SERVER") && serverMessage.getData().equals("CLOSE")) {
                             Thread.currentThread().interrupt();
                             return;
                         }
-                        if(serverMessage.isGroupMessage()){
+                        if (serverMessage.isGroupMessage()) {
                             ArrayList<String> usersSendTo = serverMessage.getGroupMembers();
                             ObjectOutputStream targetOutput;
-                            for (int i = 0; i < usersSendTo.size(); i++) {
-                                if(!usersSendTo.get(i).equals(userName)&&userSet.clientServer.containsKey(usersSendTo.get(i))){
-                                    targetOutput = userSet.getInput(usersSendTo.get(i));
+                            for (String s : usersSendTo) {
+                                if (!s.equals(userName) && userSet.clientServer.containsKey(s)) {
+                                    targetOutput = userSet.getInput(s);
                                     targetOutput.writeObject(serverMessage);
                                     targetOutput.flush();
                                 }
@@ -111,7 +110,7 @@ class handle implements Runnable{
                         targetOutput = userSet.getInput(to);
                         targetOutput.writeObject(serverMessage);
                         targetOutput.flush();
-                    } catch(EOFException | SocketException e){
+                    } catch (EOFException | SocketException e) {
                         break;
                     } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
@@ -119,8 +118,8 @@ class handle implements Runnable{
                 }
             case "GET":
                 ArrayList<String> userList = userSet.getUserNameSet();
-                for (int i = 0; i < userList.size(); i++) {
-                    out.println(userList.get(i));
+                for (String s : userList) {
+                    out.println(s);
                     out.flush();
                 }
                 out.println("OVER");
@@ -133,15 +132,15 @@ class handle implements Runnable{
 
                 try {
                     ObjectOutputStream outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
-                    int result = -1;
-                    if((result = connector.logInUser(name,password)) != 0){
+                    Integer result = -1;
+                    if ((result = connector.logInUser(name, password)) != 0) {
                         outputStream.writeObject(new String("Yes"));
                         outputStream.flush();
 
                         outputStream.writeObject(result);
                         outputStream.flush();
 
-                        switch(result){
+                        switch (result) {
                             //none
                             case 1:
                                 break;
@@ -166,7 +165,7 @@ class handle implements Runnable{
                                 outputStream.flush();
                                 break;
                         }
-                    }else{
+                    } else {
                         outputStream.writeObject(new String("No"));
                         outputStream.flush();
                     }
@@ -183,10 +182,10 @@ class handle implements Runnable{
                 String newUser = in.next();
                 String pwd = in.next();
                 try {
-                    if(connector.registerUser(newUser,pwd)){
+                    if (connector.registerUser(newUser, pwd)) {
                         out.println("OK");
                         out.flush();
-                    }else{
+                    } else {
                         out.println("NO");
                         out.flush();
                     }
@@ -196,23 +195,24 @@ class handle implements Runnable{
                 break;
         }
     }
+
     @Override
     public void run() {
-        try{
-            while(!Thread.currentThread().isInterrupted()){
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
                 String command = in.next();
-                if(command.equals("QUIT")){
+                if (command.equals("QUIT")) {
                     userSet.userQuit(userName);
                     break;
                 }
-                if(command.equals("DISCONNECT")){
+                if (command.equals("DISCONNECT")) {
                     break;
                 }
                 execute(command);
             }
-        } catch (NoSuchElementException e){
+        } catch (NoSuchElementException e) {
 
-        }finally {
+        } finally {
             try {
                 clientSocket.close();
             } catch (IOException e) {
@@ -224,43 +224,45 @@ class handle implements Runnable{
         }
     }
 }
-class UserSet{
-    ArrayList<String>userNameSet = new ArrayList<>(5);
-    HashMap<String,ArrayList<Socket>>clientServer = new HashMap<>();
 
-    HashMap<String,ObjectOutputStream> userInput = new HashMap<>();
-    public UserSet() {}
+class UserSet {
+    ArrayList<String> userNameSet = new ArrayList<>(5);
+    HashMap<String, ArrayList<Socket>> clientServer = new HashMap<>();
 
-    public synchronized ObjectOutputStream getInput(String userName){
+    HashMap<String, ObjectOutputStream> userInput = new HashMap<>();
+
+    public UserSet() {
+    }
+
+    public synchronized ObjectOutputStream getInput(String userName) {
         return userInput.get(userName);
     }
-    public synchronized void addUser(String userName, Socket client){
+
+    public synchronized void addUser(String userName, Socket client) {
         userNameSet.add(userName);
-        clientServer.put(userName,new ArrayList<>());
+        clientServer.put(userName, new ArrayList<>());
         clientServer.get(userName).add(client);
     }
 
-    public synchronized void addUserMessage(String userName, Socket messageSocket){
+    public synchronized void addUserMessage(String userName, Socket messageSocket) {
         try {
             clientServer.get(userName).add(messageSocket);
-            userInput.put(userName,new ObjectOutputStream(messageSocket.getOutputStream()));
+            userInput.put(userName, new ObjectOutputStream(messageSocket.getOutputStream()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public synchronized ArrayList<Socket> getClient(String userName){
+    public synchronized ArrayList<Socket> getClient(String userName) {
         return clientServer.get(userName);
     }
 
-    public synchronized void userQuit(String userName){
+    public synchronized void userQuit(String userName) {
         userNameSet.remove(userName);
         clientServer.remove(userName);
     }
 
-    public synchronized ArrayList<String> getUserNameSet(){
+    public synchronized ArrayList<String> getUserNameSet() {
         return userNameSet;
     }
-
-
 }
