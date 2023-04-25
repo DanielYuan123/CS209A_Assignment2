@@ -9,17 +9,17 @@ import java.io.IOException;
 
 public class Main extends Application {
 
-    public static void main(String[] args) {
-        launch();
-    }
+  public static void main(String[] args) {
+    launch();
+  }
 
-    @Override
-    public void start(Stage stage) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("newnewmain.fxml"));
-        stage.setScene(new Scene(fxmlLoader.load()));
-        stage.setTitle("Chatting Client");
-        stage.show();
-        Controller controller = (Controller) fxmlLoader.getController();
-        controller.initialStage(stage);
-    }
+  @Override
+  public void start(Stage stage) throws IOException {
+    FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("newnewmain.fxml"));
+    stage.setScene(new Scene(fxmlLoader.load()));
+    stage.setTitle("Chatting Client");
+    stage.show();
+    Controller controller = (Controller) fxmlLoader.getController();
+    controller.initialStage(stage);
+  }
 }

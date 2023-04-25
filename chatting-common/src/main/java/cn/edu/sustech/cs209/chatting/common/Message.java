@@ -3,56 +3,66 @@ package cn.edu.sustech.cs209.chatting.common;
 import java.io.Serializable;
 import java.util.ArrayList;
 
-public class Message implements Serializable{
+public class Message implements Serializable {
 
-    private Long timestamp;
+  private Long timestamp;
 
-    private String sentBy;
+  private String sentBy;
 
-    private String sendTo;
+  private String sendTo;
 
-    private String data;
+  private String data;
 
-    private boolean isGroupMessage = false;
+  private boolean isFile = false;
 
-    private ArrayList<String> groupMembers = new ArrayList<>();
+  private boolean isGroupMessage = false;
 
-    public Message(Long timestamp, String sentBy, String sendTo, String data) {
-        this.timestamp = timestamp;
-        this.sentBy = sentBy;
-        this.sendTo = sendTo;
-        this.data = data;
-    }
+  private ArrayList<String> groupMembers = new ArrayList<>();
 
-    public Long getTimestamp() {
-        return timestamp;
-    }
+  public Message(Long timestamp, String sentBy, String sendTo, String data) {
+    this.timestamp = timestamp;
+    this.sentBy = sentBy;
+    this.sendTo = sendTo;
+    this.data = data;
+  }
 
-    public String getSentBy() {
-        return sentBy;
-    }
+  public Long getTimestamp() {
+    return timestamp;
+  }
 
-    public String getSendTo() {
-        return sendTo;
-    }
+  public String getSentBy() {
+    return sentBy;
+  }
 
-    public String getData() {
-        return data;
-    }
+  public String getSendTo() {
+    return sendTo;
+  }
 
-    public boolean isGroupMessage() {
-        return isGroupMessage;
-    }
+  public String getData() {
+    return data;
+  }
 
-    public void setIsGroupMessage(){
-        this.isGroupMessage = true;
-    }
+  public boolean isGroupMessage() {
+    return isGroupMessage;
+  }
 
-    public void setGroupMembers(ArrayList<String> groupMembers){
-        this.groupMembers = groupMembers;
-    }
+  public void setIsGroupMessage() {
+    this.isGroupMessage = true;
+  }
 
-    public ArrayList<String> getGroupMembers() {
-        return groupMembers;
-    }
+  public void setGroupMembers(ArrayList<String> groupMembers) {
+    this.groupMembers = groupMembers;
+  }
+
+  public ArrayList<String> getGroupMembers() {
+    return groupMembers;
+  }
+
+  public void setIsFile(boolean a) {
+    this.isFile = a;
+  }
+
+  public boolean getIsFile() {
+    return this.isFile;
+  }
 }
