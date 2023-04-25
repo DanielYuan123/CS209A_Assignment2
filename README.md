@@ -21,4 +21,9 @@ There is also a blank area above the dialog part and group member list used as n
 
 ![img_2.png](img_2.png)
 
+# 3.JDK Setting
+
+***USE JDK1.8***
+==
+
 
