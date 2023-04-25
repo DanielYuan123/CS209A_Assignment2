@@ -83,6 +83,7 @@ public class Controller implements Initializable {
 
     Thread onlineCntThread;
     Thread onlineUserThread;
+    Thread ChatListThread;
 
 
     @Override
@@ -413,6 +414,7 @@ public class Controller implements Initializable {
 
     //set the alter rule of chat list in main UI
     private void initialChatList() {
+        chatList.setCellFactory(new ChatListFactory());
         chatList.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> {
                     if (currentChatMate != null) {
@@ -428,7 +430,7 @@ public class Controller implements Initializable {
                         }
                     }
                     chatContentList.getItems().clear();
-                    chatContentList.getItems().setAll(usersDialogSet.get(newValue));
+                    chatContentList.getItems().addAll(usersDialogSet.get(newValue));
                     currentChatMate = newValue;
                     Location.setText(currentChatMate);
                 }
@@ -436,7 +438,66 @@ public class Controller implements Initializable {
     }
 
     private void saveData() {
+        Socket storeSocket = null;
+        try {
+            storeSocket= new Socket("localhost",134);
+            if(storeSocket == null){
+                return;
+            }
+            PrintWriter sout = new PrintWriter(storeSocket.getOutputStream());
+            int cases = 1;
 
+
+            if(usersDialogSet.size() == 0){
+                if(userGroupSet.size() == 0){
+                    storeSocket.close();
+                    return;
+                }else{
+                    cases = 3;
+                }
+            }else{
+                if(userGroupSet.size() == 0){
+                    cases = 2;
+                }else{
+                    cases = 4;
+                }
+            }
+            sout.println("SAVE");
+            sout.flush();
+            sout.println(username);
+            sout.flush();
+            sout.println(cases);
+            sout.flush();
+
+            oOutStream outputStream = new oOutStream(storeSocket.getOutputStream());
+            switch (cases){
+                case 2:
+                    outputStream.writeObject(usersDialogSet);
+                    outputStream.flush();
+
+                    break;
+                case 3:
+                    outputStream.writeObject(userGroupSet);
+                    outputStream.flush();
+                    break;
+                case 4:
+                    outputStream.writeObject(usersDialogSet);
+                    outputStream.flush();
+
+                    outputStream.writeObject(userGroupSet);
+                    outputStream.flush();
+                    break;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }finally {
+            try {
+                if(storeSocket==null) return;
+                storeSocket.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 
@@ -446,6 +507,7 @@ public class Controller implements Initializable {
             @Override
             public void handle(WindowEvent windowEvent) {
                 //todo: savedata
+                saveData();
 
                 if (windowEvent.getSource() == stage) {
                     try {
@@ -715,7 +777,6 @@ public class Controller implements Initializable {
                 chatContentList.getItems().add(message);
                 inputArea.clear();
 
-
                 messageOut.writeObject(message);
                 messageOut.flush();
             } catch (SocketException e) {
@@ -757,6 +818,39 @@ public class Controller implements Initializable {
             throw new RuntimeException(e);
         }
     }
+
+
+
+    class ChatListListener implements Runnable{
+        @Override
+        public void run() {
+            while(true){
+                try {
+                    Thread.sleep(10);
+                    ArrayList<String> a = new ArrayList<>(usersDialogSet.keySet());
+                    Collections.sort(a, new Comparator<String>() {
+                        @Override
+                        public int compare(String o1, String o2) {
+                            if(usersDialogSet.get(o1).size() == 0){
+                                return -1;
+                            }
+                            if(usersDialogSet.get(o2).size() == 0){
+                                return 1;
+                            }
+                            long t1 = usersDialogSet.get(o1).get(usersDialogSet.get(o1).size()-1).getTimestamp();
+                            long t2 = usersDialogSet.get(o2).get(usersDialogSet.get(o2).size()-1).getTimestamp();
+                            return Long.compare(t1,t2);
+                        }
+                    });
+                    Platform.runLater(()->{chatList.getItems().setAll(a);});
+
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
 
 
     class OnlineUserListener implements Runnable {
@@ -894,6 +988,37 @@ public class Controller implements Initializable {
         }
     }
 
+    private class ChatListFactory implements Callback<ListView<String>, ListCell<String>> {
+        @Override
+        public ListCell<String> call(ListView<String> param) {
+            return new ListCell<String>() {
+                @Override
+                public void updateItem(String msg, boolean empty) {
+                    super.updateItem(msg, empty);
+                    if (empty || Objects.isNull(msg)) {
+                        setGraphic(null);
+                        setText(null);
+                        return;
+                    } else {
+                        if(usersDialogSet.get(msg)==null){
+                            return;
+                        }
+                        if(usersDialogSet.get(msg).size()==0){
+                            setText(msg);
+                            return;
+                        }
+                        HBox userNameBox = new HBox();
+                        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                        Label name = new Label(String.format("[%s] ",formatter.format(new Date(usersDialogSet.get(msg).get(usersDialogSet.get(msg).size() - 1).getTimestamp()))) + msg);
+                        userNameBox.getChildren().add(name);
+                        setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                        setGraphic(userNameBox);
+                    }
+                }
+            };
+        }
+    }
+
     private static class UserCellFactory implements Callback<ListView<String>, ListCell<String>> {
         Random rd = new Random((long) (50 * Math.random()));
         double red = rd.nextInt(255);
@@ -924,7 +1049,7 @@ public class Controller implements Initializable {
                         nameProfile.setStyle(String.format("-fx-border-color: rgb(%f,%f,%f)", redi / 255, greeni / 255, bluei / 255));
                         userNameBox.getChildren().addAll(nameProfile, nameLabel);
                         setGraphic(userNameBox);
-//                        setText(msg);
+
                     }
                 }
             };
@@ -980,4 +1105,13 @@ public class Controller implements Initializable {
             };
         }
     }
+}
+class oOutStream extends ObjectOutputStream{
+
+    public oOutStream(OutputStream out) throws IOException {
+        super(out);
+    }
+
+    @Override
+    protected void writeStreamHeader() throws IOException {}
 }

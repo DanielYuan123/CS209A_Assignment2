@@ -17,7 +17,6 @@ public class Main {
     static DBConnector connector;
 
     public static void main(String[] args) throws IOException {
-        System.out.println("Starting server");
         ServerSocket server = new ServerSocket(134);
         userSet = new UserSet();
         connector = new DBConnector();
@@ -125,6 +124,45 @@ class handle implements Runnable {
                 out.println("OVER");
                 out.flush();
 
+                break;
+
+
+
+            case "SAVE":
+                try {
+                    String user = in.next();
+                    String ca = in.next();
+
+                    oinStream bin = new oinStream(clientSocket.getInputStream());
+                    switch (ca){
+                        case "2":
+                            HashMap<String,ArrayList<Message>> dialog =(HashMap<String,ArrayList<Message>>) bin.readObject();
+                            connector.storeDialogAnd(dialog,null,user);
+                            break;
+                        case "3":
+                            HashMap<String,ArrayList<String>> group =(HashMap<String,ArrayList<String>>) bin.readObject();
+                            connector.storeDialogAnd(null,group,user);
+
+                            break;
+                        case "4":
+                            HashMap<String,ArrayList<Message>> dialogi =(HashMap<String,ArrayList<Message>>) bin.readObject();
+                            HashMap<String,ArrayList<String>> groupi =(HashMap<String,ArrayList<String>>) bin.readObject();
+                            connector.storeDialogAnd(dialogi,groupi,user);
+                            break;
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }finally {
+                    try {
+                        clientSocket.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
                 break;
             case "LOGIN":
                 String name = in.next();
@@ -265,4 +303,15 @@ class UserSet {
     public synchronized ArrayList<String> getUserNameSet() {
         return userNameSet;
     }
+}
+
+class oinStream extends ObjectInputStream{
+
+    public oinStream(InputStream in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void readStreamHeader()
+            throws IOException, StreamCorruptedException {}
 }

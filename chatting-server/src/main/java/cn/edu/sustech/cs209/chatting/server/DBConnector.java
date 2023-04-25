@@ -113,6 +113,7 @@ public class DBConnector {
         }
     }
 
+
     public void storeDialogAnd(HashMap<String,ArrayList<Message>> messages,HashMap<String, ArrayList<String>> chatGroup, String userName) throws SQLException, IOException {
         String sql = "UPDATE user SET chat_history = ?,group_chat_set = ? WHERE name = ?;";
         byte[] messageBytes = null;
